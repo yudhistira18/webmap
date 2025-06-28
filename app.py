@@ -147,3 +147,34 @@ st.download_button(
     file_name="composite_filtered.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+# 12. Ternary Plot SiO₂ - MgO - FeO
+st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+
+# Pastikan kolom tidak null dan data asli digunakan (df_clean)
+ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
+ternary_data['Layer'] = ternary_data['Layer'].astype(int)
+
+# Map warna sesuai layer
+color_map = {
+    100: 'gray',    # Top Soil
+    200: 'red',     # Limonit
+    250: 'black',   # Limonit Organik
+    300: 'green',   # Saprolit
+    400: 'blue',    # Bedrock
+}
+
+ternary_data['Color'] = ternary_data['Layer'].map(color_map)
+ternary_data['Layer_Label'] = ternary_data['Layer'].astype(str)
+
+# Plot pakai plotly
+import plotly.express as px
+fig = px.scatter_ternary(
+    ternary_data,
+    a='SiO2', b='MgO', c='FeO',
+    color='Layer_Label',
+    color_discrete_map={str(k): v for k, v in color_map.items()},
+    hover_name='BHID',
+    size_max=8
+)
+fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
+st.plotly_chart(fig, use_container_width=True)
