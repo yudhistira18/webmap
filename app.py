@@ -117,7 +117,7 @@ else:
 
 # 9. Tabel Composite atau Original
 st.markdown("### 📋 Tabel Data")
-show_original = st.checkbox("Tampilkan data asli (belum dikomposit)?", value=False)
+show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
 
 composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth'] + unsur
 cols_to_exclude = ['Thickness','Percent']
