@@ -7,17 +7,17 @@ from streamlit_folium import st_folium
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor ")
+st.title("🗂️ Composite Data Bor + Dashboard + Filter Bukit")
 
 # ====================================
 # 1. Upload & Read Excel
 # ====================================
 uploaded_file = st.file_uploader(
-    "📤 Upload file Excel (.xlsx) hasil eksplorasi (pastikan tidak ada conditional formatting!)",
+    "📤 Upload file Excel (.xlsx) hasil eksplorasi",
     type=["xlsx"]
 )
 if not uploaded_file:
-    st.info("Silakan upload file Excel dengan kolom Prospect, From, To, BHID, XCollar, YCollar, ZCollar, dan unsur.")
+    st.info("Silakan upload file Excel dengan kolom Bukit, Prospect, From, To, BHID, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
 df = pd.read_excel(uploaded_file)
@@ -35,7 +35,7 @@ unsur = [
 if 'Thickness' not in df.columns:
     df['Thickness'] = df['To'] - df['From']
 
-required = ['Prospect','BHID','From','To','Layer','Thickness',
+required = ['Bukit','Prospect','BHID','From','To','Layer','Thickness',
             'XCollar','YCollar','ZCollar'] + unsur
 
 missing = [c for c in required if c not in df.columns]
@@ -45,19 +45,20 @@ if missing:
 
 df = (
     df[required]
-    .dropna(subset=['Prospect','BHID','Layer','Thickness','XCollar','YCollar'])
+    .dropna(subset=['Bukit','Prospect','BHID','Layer','Thickness','XCollar','YCollar'])
     .query("Thickness > 0")
 )
 
 # ====================================
-# 3. Compositing per BHID & Layer
+# 3. Compositing per Bukit→Prospect→BHID→Layer
 # ====================================
-st.info("🔁 Mulai compositing per Prospect → BHID → Layer...")
+st.info("🔁 Mulai compositing per Bukit → Prospect → BHID → Layer...")
 progress = st.progress(0)
-groups = list(df.groupby(['Prospect','BHID','Layer']))
+groups = list(df.groupby(['Bukit','Prospect','BHID','Layer']))
 comps = []
-for i, ((prospect, bhid, layer), g) in enumerate(groups):
+for i, ((bukit, prospect, bhid, layer), g) in enumerate(groups):
     avg = {
+        'Bukit': bukit,
         'Prospect': prospect,
         'BHID': bhid,
         'Layer': layer,
@@ -82,7 +83,7 @@ composite['Percent'] = composite['Thickness'] / composite['Total_Depth'] * 100
 st.success("✅ Compositing selesai!")
 
 # ====================================
-# 4. Konversi Koordinat
+# 4. Konversi Koordinat UTM→WGS84
 # ====================================
 st.info("🌐 Konversi koordinat UTM zone 51S → WGS84")
 transformer = Transformer.from_crs("EPSG:32751","EPSG:4326",always_xy=True)
@@ -98,27 +99,32 @@ composite['Latitude']  = coords.map(lambda x: x[1])
 # ====================================
 st.markdown("## 📊 Dashboard Ringkasan")
 col1, col2, col3 = st.columns(3)
-col1.metric("🔢 Unique Prospect", composite['Prospect'].nunique())
-col2.metric("🔢 Unique BHID", composite['BHID'].nunique())
-col3.metric("📦 Total Samples", len(df))
+col1.metric("⛰️ Unique Bukit", composite['Bukit'].nunique())
+col2.metric("🏷️ Unique Prospect", composite['Prospect'].nunique())
+col3.metric("🔢 Unique BHID", composite['BHID'].nunique())
 
 # ====================================
-# 6. Filter Prospect, Layer & BHID
+# 6. Filter Bukit, Prospect, Layer & BHID
 # ====================================
+# Bukit filter
+available_bukit = ["All Bukit"] + sorted(composite['Bukit'].unique())
+selected_bukit = st.selectbox("⛰️ Filter Bukit:", available_bukit)
+df_b = composite if selected_bukit=="All Bukit" else composite[composite['Bukit']==selected_bukit]
+
 # Prospect filter
-available_prospects = ["All Prospects"] + sorted(composite['Prospect'].unique())
+available_prospects = ["All Prospects"] + sorted(df_b['Prospect'].unique())
 selected_prospect = st.selectbox("🏷️ Filter Prospect:", available_prospects)
-df_p = composite if selected_prospect=="All Prospects" else composite[composite['Prospect']==selected_prospect]
+df_bp = df_b if selected_prospect=="All Prospects" else df_b[df_b['Prospect']==selected_prospect]
 
 # Layer filter
-available_layers = ["All Layers"] + sorted(df_p["Layer"].astype(str).unique())
+available_layers = ["All Layers"] + sorted(df_bp["Layer"].astype(str).unique())
 selected_layer = st.selectbox("🔍 Filter Layer:", available_layers)
-df_pl = df_p if selected_layer=="All Layers" else df_p[df_p["Layer"]==selected_layer]
+df_bpl = df_bp if selected_layer=="All Layers" else df_bp[df_bp["Layer"]==selected_layer]
 
 # BHID filter
-available_bhids = sorted(df_pl["BHID"].astype(str).unique())
+available_bhids = sorted(df_bpl["BHID"].astype(str).unique())
 selected_bhids = st.multiselect("✅ Filter BHID:", available_bhids)
-filtered = df_pl if not selected_bhids else df_pl[df_pl["BHID"].isin(selected_bhids)]
+filtered = df_bpl if not selected_bhids else df_bpl[df_bpl["BHID"].isin(selected_bhids)]
 
 # ====================================
 # 7. Peta Titik Bor
@@ -135,6 +141,7 @@ if not filtered.empty:
             radius=5, color='blue',
             fill=True, fill_opacity=0.7,
             popup=(
+                f"Bukit: {r['Bukit']}<br>"
                 f"Prospect: {r['Prospect']}<br>"
                 f"BHID: {r['BHID']}<br>"
                 f"Layer: {r['Layer']}<br>"
@@ -149,7 +156,7 @@ else:
 # 8. Tabel Composite
 # ====================================
 st.markdown("### 📋 Tabel Composite")
-cols_show = ['Prospect','BHID','Layer','From','To','Thickness','Percent'] + unsur
+cols_show = ['Bukit','Prospect','BHID','Layer','From','To','Thickness','Percent'] + unsur
 st.dataframe(filtered[cols_show], use_container_width=True)
 
 # ====================================
@@ -157,9 +164,9 @@ st.dataframe(filtered[cols_show], use_container_width=True)
 # ====================================
 st.markdown("### 📍 Koordinat Collar UTM & Total Depth")
 summary = (
-    composite[['Prospect','BHID','XCollar','YCollar','ZCollar','Total_Depth']]
+    composite[['Bukit','Prospect','BHID','XCollar','YCollar','ZCollar','Total_Depth']]
     .drop_duplicates()
-    .sort_values(['Prospect','BHID'])
+    .sort_values(['Bukit','Prospect','BHID'])
 )
 st.dataframe(summary, use_container_width=True)
 
