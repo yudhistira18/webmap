@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
+import geopandas as gpd
+from shapely.geometry import Point
 from streamlit_folium import st_folium
 from io import BytesIO
-from pyproj import Transformer
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Koordinat UTM ke WGS84")
+st.title("🗂️ Composite Data Bor + Konversi Koordinat (GeoPandas)")
 
 unsur = [
     'Ni', 'Co', 'Fe2O3', 'Fe', 'FeO', 'SiO2', 'CaO', 'MgO', 'MnO',
@@ -16,7 +17,7 @@ unsur = [
 
 layer_mapping = {'TP': 100, 'L': 200, 'LO': 250, 'S': 300, 'BR': 400}
 
-uploaded_file = st.file_uploader("Upload file Excel bor (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("📤 Upload file Excel bor (.xlsx)", type=["xlsx"])
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
@@ -33,7 +34,6 @@ if uploaded_file is not None:
     df = df.dropna(subset=['BHID', 'Layer', 'Thickness', 'X', 'Y'])
     df = df[df['Thickness'] > 0]
 
-    # Spinner & progress bar saat compositing
     with st.spinner("⏳ Sedang memproses composite per BHID dan Layer..."):
         progress = st.progress(0, text="Memulai komposit data...")
 
@@ -70,7 +70,7 @@ if uploaded_file is not None:
     progress.empty()
     st.success("✅ Proses compositing selesai!")
 
-    # Tambah info lanjutan
+    # Tambah informasi lanjutan
     composite['Layer_Code'] = composite['Layer'].map(layer_mapping)
     composite['Layer_Code'] = composite['Layer_Code'].fillna(pd.to_numeric(composite['Layer'], errors='coerce'))
 
@@ -80,11 +80,15 @@ if uploaded_file is not None:
     composite['Percent'] = (composite['Thickness'] / composite['Total_Depth']) * 100
     composite['Organic_Limonite'] = composite['Layer_Code'].apply(lambda x: 'LO' if x == 250 else '')
 
-    # Konversi koordinat UTM 51S → WGS84
-    transformer = Transformer.from_crs("EPSG:32751", "EPSG:4326", always_xy=True)
-    lon_lat = composite.apply(lambda row: transformer.transform(row["XCollar"], row["YCollar"]), axis=1)
-    composite["Longitude"] = lon_lat.apply(lambda x: x[0])
-    composite["Latitude"] = lon_lat.apply(lambda x: x[1])
+    # Konversi koordinat pakai GeoPandas
+    geo_df = gpd.GeoDataFrame(
+        composite,
+        geometry=gpd.points_from_xy(composite['XCollar'], composite['YCollar']),
+        crs='EPSG:32751'  # UTM 51S
+    )
+    geo_df = geo_df.to_crs('EPSG:4326')
+    composite['Longitude'] = geo_df.geometry.x
+    composite['Latitude'] = geo_df.geometry.y
 
     # Urutkan kolom
     cols_order = ['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Longitude', 'Latitude'] + \
@@ -112,7 +116,7 @@ if uploaded_file is not None:
             folium.CircleMarker(
                 location=[row['Latitude'], row['Longitude']],
                 radius=6,
-                color='green',
+                color='blue',
                 fill=True,
                 fill_opacity=0.7,
                 popup=popup
@@ -120,12 +124,13 @@ if uploaded_file is not None:
 
         st_folium(m, height=450, use_container_width=True)
 
-    # Tombol download
+    # Download tombol
     st.markdown("### 💾 Download Hasil")
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         composite.to_excel(writer, sheet_name='Layer_Composite', index=False)
         depth.to_excel(writer, sheet_name='Total_Depth', index=False)
+
     st.download_button(
         label="⬇️ Download Excel",
         data=output.getvalue(),
