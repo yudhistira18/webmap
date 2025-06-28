@@ -37,10 +37,10 @@ if not st.session_state.authenticated:
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 gdf = gpd.read_file("composite_bor.geojson")
 
-available_layers = ["All Layers"] + sorted(gdf['Layer'].unique().tolist())
+available_layers = ["All Layers"] + sorted(gdf['Layer'].unique().astype(str).tolist())
 selected_layer = st.selectbox("🔍 Pilih Layer:", options=available_layers)
 
-filtered_gdf = gdf.copy() if selected_layer == "All Layers" else gdf[gdf['Layer'] == selected_layer]
+filtered_gdf = gdf.copy() if selected_layer == "All Layers" else gdf[gdf['Layer'].astype(str) == selected_layer]
 
 # ======================
 # Isograde Interpolasi
@@ -103,7 +103,7 @@ if overlay_image and bounds:
     ImageOverlay(image="isograde_overlay.png", bounds=bounds, opacity=0.6, name="Isograde Ni").add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, use_container_width=True, height=500)  # ✅ Tinggi peta diatur agar tidak terlalu tinggi
+st_folium(m, use_container_width=True, height=500)
 
 # ======================
 # TABEL COMPOSITE
@@ -116,6 +116,8 @@ unsur_cols = [
 ]
 
 composite_table = pd.DataFrame(filtered_gdf[unsur_cols])
+composite_table["BHID"] = composite_table["BHID"].astype(str)
+composite_table["Layer"] = composite_table["Layer"].astype(str)
 
 gb = GridOptionsBuilder.from_dataframe(composite_table)
 gb.configure_default_column(
@@ -153,6 +155,7 @@ st.markdown("### 📏 Tabel Total Depth per BHID")
 
 depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
 depth_table = depth_table.sort_values('BHID')
+depth_table["BHID"] = depth_table["BHID"].astype(str)
 
 gb_depth = GridOptionsBuilder.from_dataframe(depth_table)
 gb_depth.configure_default_column(
