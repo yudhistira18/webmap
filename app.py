@@ -123,7 +123,7 @@ else:
 st.markdown("### 📋 Tabel Data")
 show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
 
-composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth','Total_Thickness_Per_Layer'] + unsur
+composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth','Layer_Thickness'] + unsur
 cols_to_exclude = ['Thickness','Percent']
 original_cols = [col for col in composite_cols if col in df_clean.columns and col not in cols_to_exclude]
 
