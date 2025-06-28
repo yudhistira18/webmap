@@ -100,100 +100,10 @@ layer_opts = sorted(df_filter['Layer'].astype(str).unique())
 selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
-# 7 + 8. Ringkasan Horizontal & Peta Full Width
-st.markdown("## 📊 Ringkasan")
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
-c2.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
-c3.metric("🔢 BHID", df_filter['BHID'].nunique())
-c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
-
-st.markdown("## 🗺️ Peta Titik Bor")
-if not df_filter.empty:
-    m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
-    for _, r in df_filter.iterrows():
-        folium.CircleMarker(
-            [r['Latitude'], r['Longitude']],
-            radius=5, color='blue', fill=True, fill_opacity=0.7,
-            popup=(f"Prospect: {r['Prospect']}<br>"
-                   f"Bukit: {r['Bukit']}<br>"
-                   f"BHID: {r['BHID']}<br>"
-                   f"Layer: {r['Layer']}<br>"
-                   f"Ni: {r['Ni']:.2f}")
-        ).add_to(m)
-    st_folium(m, height=550, use_container_width=True)
-else:
-    st.warning("Tidak ada data ditampilkan pada peta.")
-
-
-
-# Checkbox untuk menampilkan data asli
-st.markdown("### 📋 Tabel Data")
-show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
-
-composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Layer Thickness','Total_Depth'] + unsur
-original_cols = [col for col in composite_cols if col in df_clean.columns]
-
-if show_original:
-    original_filtered = df_clean[df_clean['BHID'].isin(df_filter['BHID']) & df_clean['Layer'].astype(str).isin(selected_layers)]
-    st.dataframe(original_filtered[original_cols], use_container_width=True)
-else:
-    st.dataframe(df_filter[composite_cols], use_container_width=True)
-
-# Tabel koordinat
-st.markdown("### 📍 Koordinat Collar dan Total Depth")
-summary = df_filter[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']].drop_duplicates()
-st.dataframe(summary, use_container_width=True)
-
-# Download
-st.markdown("### 💾 Unduh Hasil")
-out = BytesIO()
-with pd.ExcelWriter(out, engine='openpyxl') as writer:
-    df_filter.to_excel(writer, sheet_name='Composite', index=False)
-    summary.to_excel(writer, sheet_name='Summary', index=False)
-st.download_button(
-    label="⬇️ Download Excel (2 Sheet)",
-    data=out.getvalue(),
-    file_name="composite_filtered.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# Ternary Plot
-st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
-
-ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
-ternary_data['Layer'] = ternary_data['Layer'].astype(int)
-
-color_map = {
-    100: 'gray',    # Top Soil
-    200: 'red',     # Limonit
-    250: 'black',   # Limonit Organik
-    300: 'green',   # Saprolit
-    400: 'blue',    # Bedrock
-}
-label_map = {
-    100: "Top Soil",
-    200: "Limonit",
-    250: "Limonit Organik",
-    300: "Saprolit",
-    400: "Bedrock"
-}
-ternary_data['Color'] = ternary_data['Layer'].map(color_map)
-ternary_data['Layer_Label'] = ternary_data['Layer'].map(label_map)
-
-fig = px.scatter_ternary(
-    ternary_data,
-    a='SiO2', b='MgO', c='FeO',
-    color='Layer_Label',
-    color_discrete_map={v: color_map[k] for k, v in label_map.items()},
-    hover_name='BHID',
-    size_max=8
-)
-fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
-st.plotly_chart(fig, use_container_width=True)
-
-import plotly.graph_objects as go
+# ========================
+# 📍 Data & Visualisasi Tabs
+# ========================
+import plotly.graph_objects as go  # pastikan sudah di-import sebelumnya
 
 # Layer dan warna
 layer_names = {
@@ -211,26 +121,110 @@ color_map = {
     400: 'blue'
 }
 
-# Siapkan trace untuk tiap layer
-fig = go.Figure()
-for layer_code, layer_label in layer_names.items():
-    df_layer = df_clean[df_clean['Layer'] == layer_code]
-    fig.add_trace(go.Box(
-        y=df_layer['MC'],
-        name=f"{layer_code} - {layer_label}",
-        marker_color=color_map[layer_code],
-        boxpoints='all',  # ini bikin titik menyatu
-        jitter=0.4,
-        pointpos=0,
-        marker=dict(opacity=0.6, size=4),
-        line=dict(width=1)
-    ))
+tab_data, tab_vis = st.tabs(["📍 Data & Peta", "📈 Visualisasi"])
 
-fig.update_layout(
-    title="📦 Box Plot MC per Layer",
-    yaxis_title="MC (%)",
-    xaxis_title="Layer",
-    showlegend=False
-)
+# ========================
+# TAB 1: Data & Peta
+# ========================
+with tab_data:
+    st.markdown("## 📊 Ringkasan")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
+    c2.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
+    c3.metric("🔢 BHID", df_filter['BHID'].nunique())
+    c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
 
-st.plotly_chart(fig, use_container_width=True)
+    st.markdown("## 🗺️ Peta Titik Bor")
+    if not df_filter.empty:
+        m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
+        for _, r in df_filter.iterrows():
+            folium.CircleMarker(
+                [r['Latitude'], r['Longitude']],
+                radius=5, color='blue', fill=True, fill_opacity=0.7,
+                popup=(f"Prospect: {r['Prospect']}<br>"
+                       f"Bukit: {r['Bukit']}<br>"
+                       f"BHID: {r['BHID']}<br>"
+                       f"Layer: {r['Layer']}<br>"
+                       f"Ni: {r['Ni']:.2f}")
+            ).add_to(m)
+        st_folium(m, height=550, use_container_width=True)
+    else:
+        st.warning("Tidak ada data ditampilkan pada peta.")
+
+    # Tabel
+    st.markdown("### 📋 Tabel Data")
+    show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
+
+    composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Layer Thickness','Total_Depth'] + unsur
+    original_cols = [col for col in composite_cols if col in df_clean.columns]
+
+    if show_original:
+        original_filtered = df_clean[df_clean['BHID'].isin(df_filter['BHID']) & df_clean['Layer'].astype(str).isin(selected_layers)]
+        st.dataframe(original_filtered[original_cols], use_container_width=True)
+    else:
+        st.dataframe(df_filter[composite_cols], use_container_width=True)
+
+    # Tabel koordinat
+    st.markdown("### 📍 Koordinat Collar dan Total Depth")
+    summary = df_filter[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']].drop_duplicates()
+    st.dataframe(summary, use_container_width=True)
+
+    # Download
+    st.markdown("### 💾 Unduh Hasil")
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine='openpyxl') as writer:
+        df_filter.to_excel(writer, sheet_name='Composite', index=False)
+        summary.to_excel(writer, sheet_name='Summary', index=False)
+    st.download_button(
+        label="⬇️ Download Excel (2 Sheet)",
+        data=out.getvalue(),
+        file_name="composite_filtered.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ========================
+# TAB 2: Visualisasi
+# ========================
+with tab_vis:
+    st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+
+    ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
+    ternary_data['Layer'] = ternary_data['Layer'].astype(int)
+    ternary_data['Layer_Label'] = ternary_data['Layer'].map(layer_names)
+
+    fig_tern = px.scatter_ternary(
+        ternary_data,
+        a='SiO2', b='MgO', c='FeO',
+        color='Layer_Label',
+        color_discrete_map={name: color_map[code] for code, name in layer_names.items()},
+        hover_name='BHID',
+        size_max=8
+    )
+    fig_tern.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
+    st.plotly_chart(fig_tern, use_container_width=True)
+
+    st.markdown("### 📦 Box Plot MC per Layer")
+
+    fig_box = go.Figure()
+    for layer_code, layer_label in layer_names.items():
+        df_layer = df_clean[df_clean['Layer'] == layer_code]
+        if not df_layer.empty:
+            fig_box.add_trace(go.Box(
+                y=df_layer['MC'],
+                name=f"{layer_code} - {layer_label}",
+                marker_color=color_map[layer_code],
+                boxpoints='all',
+                jitter=0.4,
+                pointpos=0,
+                marker=dict(opacity=0.6, size=4),
+                line=dict(width=1)
+            ))
+
+    fig_box.update_layout(
+        title="Box Plot MC per Layer",
+        yaxis_title="MC (%)",
+        xaxis_title="Layer",
+        showlegend=False
+    )
+    st.plotly_chart(fig_box, use_container_width=True)
+
