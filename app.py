@@ -6,7 +6,7 @@ import folium
 from streamlit_folium import st_folium
 from io import BytesIO
 import plotly.express as px
-
+import plotly.graph_objects as go
 st.set_page_config(layout="wide")
 st.title("🗂️ Composite Data Bor")
 
