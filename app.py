@@ -7,13 +7,13 @@ from streamlit_folium import st_folium
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Dashboard + Filter Prospect")
+st.title("🗂️ Composite Data Bor ")
 
 # ====================================
 # 1. Upload & Read Excel
 # ====================================
 uploaded_file = st.file_uploader(
-    "📤 Upload file Excel (.xlsx) hasil eksplorasi",
+    "📤 Upload file Excel (.xlsx) hasil eksplorasi (pastikan tidak ada conditional formatting!)",
     type=["xlsx"]
 )
 if not uploaded_file:
