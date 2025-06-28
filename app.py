@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============ FILE UPLOAD ============
-uploaded_file = st.file_uploader("📄 Upload file Excel (.xlsx) (JANGAN ADA CONDITIONAL FORMATTING/ATAU MULTIPLE SHEETS)", type=["xlsx"])
+uploaded_file = st.file_uploader("📄 Upload file Excel (.xlsx)", type=["xlsx"])
 if not uploaded_file:
     st.info("Silakan upload file Excel yang berisi kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
@@ -77,26 +77,31 @@ composite['Latitude'] = lonlat.map(lambda x: x[1])
 
 # ============ SIDEBAR FILTER ============
 st.sidebar.header("🔍 Filter Data")
-prospect_opts = sorted(composite['Prospect'].unique())
+
+df_filter_base = df_clean.copy()
+
+prospect_opts = sorted(df_filter_base['Prospect'].unique())
 selected_prospect = st.sidebar.selectbox("🏷️ Prospect", ["All"] + prospect_opts)
-df_filter = composite if selected_prospect == "All" else composite[composite['Prospect'] == selected_prospect]
+if selected_prospect != "All":
+    df_filter_base = df_filter_base[df_filter_base['Prospect'] == selected_prospect]
 
-bukit_opts = sorted(df_filter['Bukit'].unique())
+bukit_opts = sorted(df_filter_base['Bukit'].unique())
 selected_bukit = st.sidebar.multiselect("⛰️ Bukit", options=bukit_opts, default=bukit_opts)
-df_filter = df_filter[df_filter['Bukit'].isin(selected_bukit)]
+df_filter_base = df_filter_base[df_filter_base['Bukit'].isin(selected_bukit)]
 
-bhid_opts = sorted(df_filter['BHID'].unique())
+bhid_opts = sorted(df_filter_base['BHID'].unique())
 selected_bhids = st.sidebar.multiselect("🔢 BHID", options=bhid_opts, default=bhid_opts)
-df_filter = df_filter[df_filter['BHID'].isin(selected_bhids)]
+df_filter_base = df_filter_base[df_filter_base['BHID'].isin(selected_bhids)]
 
-layer_opts = sorted(df_filter['Layer'].astype(str).unique())
+layer_opts = sorted(df_filter_base['Layer'].astype(str).unique())
 selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
-df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
+df_filter_base = df_filter_base[df_filter_base['Layer'].astype(str).isin(selected_layers)]
 
-# Filter untuk df_clean agar visualisasi ikut filter
-df_clean_filtered = df_clean[
-    df_clean['BHID'].isin(selected_bhids) &
-    df_clean['Layer'].astype(str).isin(selected_layers)
+df_clean_filtered = df_filter_base.copy()
+
+df_filter = composite[
+    composite['BHID'].isin(df_clean_filtered['BHID']) &
+    composite['Layer'].astype(str).isin(df_clean_filtered['Layer'].astype(str))
 ]
 
 # ============ WARNA & LABEL LAYER ============
@@ -124,7 +129,7 @@ with tab_data:
     c1.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
     c2.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
     c3.metric("🔢 BHID", df_filter['BHID'].nunique())
-    c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
+    c4.metric("🧪 Sampel Awal", df_clean_filtered.shape[0])
 
     st.markdown("## 🗘️ Peta Titik Bor")
     if not df_filter.empty:
@@ -146,8 +151,7 @@ with tab_data:
     composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Layer Thickness','Total_Depth'] + unsur
     original_cols = [col for col in composite_cols if col in df_clean.columns]
     if show_original:
-        original_filtered = df_clean[df_clean['BHID'].isin(df_filter['BHID']) & df_clean['Layer'].astype(str).isin(selected_layers)]
-        st.dataframe(original_filtered[original_cols], use_container_width=True)
+        st.dataframe(df_clean_filtered[original_cols], use_container_width=True)
     else:
         st.dataframe(df_filter[composite_cols], use_container_width=True)
 
