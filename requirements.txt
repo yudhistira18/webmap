@@ -6,3 +6,4 @@ shapely>=2.0.3
 openpyxl>=3.1.2
 folium>=0.16.0
 streamlit-folium>=0.18.0
+st-aggrid==0.3.3.post2
