@@ -4,14 +4,16 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 import io
-import branca.colormap as cm
+from scipy.interpolate import griddata
+import numpy as np
+import matplotlib.pyplot as plt
 
 st.set_page_config(layout="wide")
 
 # ======================
 # Password sederhana
 # ======================
-PASSWORD = "Geomin2025"  # ganti dengan password kamu
+PASSWORD = "Geomin2025"
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
@@ -30,14 +32,14 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ======================
-# Load data setelah login
+# App utama
 # ======================
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 
-# Load GeoJSON hasil export dari GEE
+# Load GeoJSON
 gdf = gpd.read_file("composite_bor.geojson")
 
-# Dropdown filter berdasarkan layer
+# Dropdown layer
 available_layers = sorted(gdf['Layer'].unique().tolist())
 selected_layer = st.selectbox("🔍 Pilih Layer:", options=available_layers)
 
@@ -45,34 +47,42 @@ selected_layer = st.selectbox("🔍 Pilih Layer:", options=available_layers)
 filtered_gdf = gdf[gdf['Layer'] == selected_layer]
 
 # =======================
-# Tambahan Filter Ni Grade
+# PETA ISOGRADE Ni
 # =======================
-st.markdown("### 🎚️ Filter Kadar Nikel (Ni)")
-min_ni = float(filtered_gdf['Ni'].min())
-max_ni = float(filtered_gdf['Ni'].max())
-ni_threshold = st.slider(
-    "Tampilkan hanya titik dengan Ni ≥ ...", 
-    min_value=round(min_ni, 2), 
-    max_value=round(max_ni, 2), 
-    value=1.8, step=0.05
-)
+st.subheader("🌀 Peta Isograde (Interpolasi Ni)")
 
-# Terapkan filter Ni
-filtered_gdf = filtered_gdf[filtered_gdf['Ni'] >= ni_threshold]
+x = filtered_gdf.geometry.x.values
+y = filtered_gdf.geometry.y.values
+z = filtered_gdf['Ni'].values
+
+if len(z) >= 3:
+    xi = np.linspace(x.min(), x.max(), 100)
+    yi = np.linspace(y.min(), y.max(), 100)
+    xi, yi = np.meshgrid(xi, yi)
+    zi = griddata((x, y), z, (xi, yi), method='linear')
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    contour = ax.contourf(xi, yi, zi, levels=15, cmap='YlOrRd')
+    scatter = ax.scatter(x, y, c='black', s=10, label='Titik Bor')
+    ax.set_title(f'Isograde Ni - Layer {selected_layer}')
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.legend()
+    fig.colorbar(contour, ax=ax, label='Kadar Ni (%)')
+
+    st.pyplot(fig)
+else:
+    st.warning("⚠️ Tidak cukup titik (min. 3) untuk interpolasi isograde.")
 
 # =======================
-# Peta folium
+# PETA FOLIUM TITIK BOR
 # =======================
+st.subheader("📍 Peta Titik Bor")
 m = folium.Map(
     location=[filtered_gdf.geometry.y.mean(), filtered_gdf.geometry.x.mean()],
     zoom_start=12
 )
 
-# Colormap berdasarkan Ni
-colormap = cm.linear.YlOrRd_09.scale(min_ni, max_ni)
-colormap.caption = 'Kadar Ni'
-
-# Tambahkan marker ke peta
 for _, row in filtered_gdf.iterrows():
     popup = (
         f"<b>BHID:</b> {row['BHID']}<br>"
@@ -83,39 +93,32 @@ for _, row in filtered_gdf.iterrows():
     folium.CircleMarker(
         location=[row.geometry.y, row.geometry.x],
         radius=6,
-        color=colormap(row['Ni']),
+        color='red',
         fill=True,
         fill_opacity=0.8,
         popup=popup
     ).add_to(m)
 
-m.add_child(colormap)
-
-# Tampilkan peta di Streamlit
 st_data = st_folium(m, use_container_width=True)
 
 # =======================
-# TABEL COMPOSITE PER LAYER
+# TABEL COMPOSITE
 # =======================
-st.subheader(f"📋 Tabel Data Composite - Layer: {selected_layer} (Ni ≥ {ni_threshold})")
-
+st.subheader(f"📋 Tabel Data Composite - Layer: {selected_layer}")
 unsur_cols = [
     'BHID', 'Layer', 'From', 'To', 'Thickness', 'Percent',
     'Ni', 'Fe', 'Co', 'MgO', 'Al2O3', 'SiO2', 'LOI'
 ]
-
 composite_table = pd.DataFrame(filtered_gdf[unsur_cols])
 st.dataframe(composite_table.style.format(precision=2), use_container_width=True)
 
-# Tombol download CSV
+# Tombol Download CSV
 csv_buffer = io.StringIO()
 composite_table.to_csv(csv_buffer, index=False)
-csv_bytes = csv_buffer.getvalue().encode()
-
 st.download_button(
-    label="⬇️ Download CSV Data Composite",
-    data=csv_bytes,
-    file_name=f"composite_layer_{selected_layer}_Ni{ni_threshold}.csv",
+    label="⬇️ Download CSV",
+    data=csv_buffer.getvalue().encode(),
+    file_name=f"composite_layer_{selected_layer}.csv",
     mime='text/csv'
 )
 
