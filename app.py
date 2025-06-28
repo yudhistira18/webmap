@@ -159,78 +159,66 @@ st.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-# Ternary Plot
-st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+# === Tabs untuk Visualisasi ===
+st.markdown("## 📈 Visualisasi")
 
-ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
-ternary_data['Layer'] = ternary_data['Layer'].astype(int)
+tab1, tab2 = st.tabs(["🔺 Ternary Plot", "📦 Box Plot MC"])
 
-color_map = {
-    100: 'gray',    # Top Soil
-    200: 'red',     # Limonit
-    250: 'black',   # Limonit Organik
-    300: 'green',   # Saprolit
-    400: 'blue',    # Bedrock
-}
-label_map = {
-    100: "Top Soil",
-    200: "Limonit",
-    250: "Limonit Organik",
-    300: "Saprolit",
-    400: "Bedrock"
-}
-ternary_data['Color'] = ternary_data['Layer'].map(color_map)
-ternary_data['Layer_Label'] = ternary_data['Layer'].map(label_map)
+with tab1:
+    st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
 
-fig = px.scatter_ternary(
-    ternary_data,
-    a='SiO2', b='MgO', c='FeO',
-    color='Layer_Label',
-    color_discrete_map={v: color_map[k] for k, v in label_map.items()},
-    hover_name='BHID',
-    size_max=8
-)
-fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
-st.plotly_chart(fig, use_container_width=True)
+    ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
+    ternary_data['Layer'] = ternary_data['Layer'].astype(int)
 
-import plotly.graph_objects as go
+    color_map = {
+        100: 'gray',    # Top Soil
+        200: 'red',     # Limonit
+        250: 'black',   # Limonit Organik
+        300: 'green',   # Saprolit
+        400: 'blue',    # Bedrock
+    }
+    label_map = {
+        100: "Top Soil",
+        200: "Limonit",
+        250: "Limonit Organik",
+        300: "Saprolit",
+        400: "Bedrock"
+    }
+    ternary_data['Color'] = ternary_data['Layer'].map(color_map)
+    ternary_data['Layer_Label'] = ternary_data['Layer'].map(label_map)
 
-# Layer dan warna
-layer_names = {
-    100: 'Top Soil',
-    200: 'Limonit',
-    250: 'Limonit Organik',
-    300: 'Saprolit',
-    400: 'Bedrock'
-}
-color_map = {
-    100: 'gray',
-    200: 'red',
-    250: 'black',
-    300: 'green',
-    400: 'blue'
-}
+    fig_tern = px.scatter_ternary(
+        ternary_data,
+        a='SiO2', b='MgO', c='FeO',
+        color='Layer_Label',
+        color_discrete_map={v: color_map[k] for k, v in label_map.items()},
+        hover_name='BHID',
+        size_max=8
+    )
+    fig_tern.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
+    st.plotly_chart(fig_tern, use_container_width=True)
 
-# Siapkan trace untuk tiap layer
-fig = go.Figure()
-for layer_code, layer_label in layer_names.items():
-    df_layer = df_clean[df_clean['Layer'] == layer_code]
-    fig.add_trace(go.Box(
-        y=df_layer['MC'],
-        name=f"{layer_code} - {layer_label}",
-        marker_color=color_map[layer_code],
-        boxpoints='all',  # ini bikin titik menyatu
-        jitter=0.4,
-        pointpos=0,
-        marker=dict(opacity=0.6, size=4),
-        line=dict(width=1)
-    ))
+with tab2:
+    st.markdown("### 📦 Box Plot MC per Layer")
 
-fig.update_layout(
-    title="📦 Box Plot MC per Layer",
-    yaxis_title="MC (%)",
-    xaxis_title="Layer",
-    showlegend=False
-)
+    fig_box = go.Figure()
+    for layer_code, layer_label in layer_map.items():
+        df_layer = df_clean[df_clean['Layer'] == layer_code]
+        fig_box.add_trace(go.Box(
+            y=df_layer['MC'],
+            name=f"{layer_code} - {layer_label}",
+            marker_color=color_map[layer_code],
+            boxpoints='all',
+            jitter=0.4,
+            pointpos=0,
+            marker=dict(opacity=0.6, size=4),
+            line=dict(width=1)
+        ))
 
-st.plotly_chart(fig, use_container_width=True)
+    fig_box.update_layout(
+        title="Box Plot MC per Layer",
+        yaxis_title="MC (%)",
+        xaxis_title="Layer",
+        showlegend=False
+    )
+    st.plotly_chart(fig_box, use_container_width=True)
