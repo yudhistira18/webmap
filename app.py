@@ -202,7 +202,7 @@ with tab2:
     st.markdown("### 📦 Box Plot MC per Layer")
 
     fig_box = go.Figure()
-    for layer_code, layer_label in layer_map.items():
+    for layer_code, layer_label in layer_names.items():
         df_layer = df_clean[df_clean['Layer'] == layer_code]
         fig_box.add_trace(go.Box(
             y=df_layer['MC'],
