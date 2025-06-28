@@ -1,9 +1,9 @@
 streamlit
+pandas
+numpy
 geopandas
+shapely
 folium
 streamlit-folium
 streamlit-aggrid
-scipy
-pillow
-numpy
-matplotlib
+openpyxl
