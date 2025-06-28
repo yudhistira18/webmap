@@ -6,7 +6,6 @@ from streamlit_folium import st_folium
 import io
 import numpy as np
 from scipy.interpolate import griddata
-import matplotlib.pyplot as plt
 from PIL import Image
 from folium.raster_layers import ImageOverlay
 from st_aggrid import AgGrid, GridOptionsBuilder
@@ -176,8 +175,24 @@ st.download_button(
 )
 
 # =======================
-# TABEL TOTAL DEPTH
+# TABEL TOTAL DEPTH (AgGrid juga)
 # =======================
-st.subheader("📏 Total Depth per BHID")
+st.subheader("📏 Tabel Interaktif Total Depth per BHID")
+
 depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
-st.dataframe(depth_table.sort_values('BHID'), use_container_width=True)
+depth_table = depth_table.sort_values('BHID')
+
+gb_depth = GridOptionsBuilder.from_dataframe(depth_table)
+gb_depth.configure_default_column(filter=True, sortable=True, resizable=True)
+gb_depth.configure_pagination(paginationAutoPageSize=True)
+depth_options = gb_depth.build()
+
+AgGrid(
+    depth_table,
+    gridOptions=depth_options,
+    enable_enterprise_modules=False,
+    fit_columns_on_grid_load=True,
+    theme="streamlit",
+    height=350,
+    editable=False
+)
