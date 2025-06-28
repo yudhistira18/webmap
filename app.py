@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import geopandas as gpd
 import folium
 from streamlit_folium import st_folium
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Upload & Compositing Data Bor")
+st.title("🗂️ Upload & Compositing Data Bor tanpa geopandas")
 
 unsur = [
     'Ni', 'Co', 'Fe2O3', 'Fe', 'FeO', 'SiO2', 'CaO', 'MgO', 'MnO',
@@ -17,12 +16,11 @@ unsur = [
 
 layer_mapping = {'TP': 100, 'L': 200, 'LO': 250, 'S': 300, 'BR': 400}
 
-# ---- Upload file Excel ----
 uploaded_file = st.file_uploader("Upload file Excel bor (.xlsx)", type=["xlsx"])
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Jika Thickness tidak ada, hitung dari To - From
+    # Hitung Thickness kalau belum ada
     if 'Thickness' not in df.columns:
         if ('To' in df.columns) and ('From' in df.columns):
             df['Thickness'] = df['To'] - df['From']
@@ -30,7 +28,6 @@ if uploaded_file is not None:
             st.error("Kolom 'Thickness' tidak ditemukan, dan kolom 'From' atau 'To' juga tidak lengkap.")
             st.stop()
 
-    # Pastikan semua kolom penting ada
     required_cols = ['BHID', 'From', 'To', 'Layer', 'Thickness', 'X', 'Y', 'XCollar', 'YCollar', 'ZCollar'] + unsur
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
@@ -96,22 +93,15 @@ if uploaded_file is not None:
         editable=False
     )
 
-    # Buat GeoDataFrame untuk peta
-    gdf = gpd.GeoDataFrame(
-        composite,
-        geometry=gpd.points_from_xy(composite['Y'], composite['X']),
-        crs="EPSG:4326"
-    )
-
-    # Plot peta Folium
+    # Buat peta Folium tanpa geopandas
     st.markdown("### 🗺️ Peta Titik Compositing")
-    if not gdf.empty:
+    if not composite.empty:
         m = folium.Map(
-            location=[gdf.geometry.y.mean(), gdf.geometry.x.mean()],
+            location=[composite['Y'].mean(), composite['X'].mean()],
             zoom_start=12
         )
 
-        for _, row in gdf.iterrows():
+        for _, row in composite.iterrows():
             popup = (
                 f"<b>BHID:</b> {row['BHID']}<br>"
                 f"<b>Layer:</b> {row['Layer']}<br>"
@@ -120,7 +110,7 @@ if uploaded_file is not None:
                 f"<b>Percent:</b> {row['Percent']:.2f} %"
             )
             folium.CircleMarker(
-                location=[row.geometry.y, row.geometry.x],
+                location=[row['Y'], row['X']],
                 radius=6,
                 color='blue',
                 fill=True,
