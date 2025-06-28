@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Dashboard Ringkasan")
+st.title("🗂️ Composite Data Bor + Dashboard + Filter Prospect")
 
 # ====================================
 # 1. Upload & Read Excel
@@ -17,7 +17,7 @@ uploaded_file = st.file_uploader(
     type=["xlsx"]
 )
 if not uploaded_file:
-    st.info("Silakan upload file Excel dengan kolom From, To, BHID, XCollar, YCollar, ZCollar, dan unsur.")
+    st.info("Silakan upload file Excel dengan kolom Prospect, From, To, BHID, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
 df = pd.read_excel(uploaded_file)
@@ -35,7 +35,7 @@ unsur = [
 if 'Thickness' not in df.columns:
     df['Thickness'] = df['To'] - df['From']
 
-required = ['BHID','From','To','Layer','Thickness',
+required = ['Prospect','BHID','From','To','Layer','Thickness',
             'XCollar','YCollar','ZCollar'] + unsur
 
 missing = [c for c in required if c not in df.columns]
@@ -45,15 +45,20 @@ if missing:
 
 df = (
     df[required]
-    .dropna(subset=['BHID','Layer','Thickness','XCollar','YCollar'])
+    .dropna(subset=['Prospect','BHID','Layer','Thickness','XCollar','YCollar'])
     .query("Thickness > 0")
 )
 
-progress = st.progress(0, text="🔁 Compositing per BHID & Layer...")
-groups = list(df.groupby(['BHID','Layer']))
+# ====================================
+# 3. Compositing per BHID & Layer
+# ====================================
+st.info("🔁 Mulai compositing per Prospect → BHID → Layer...")
+progress = st.progress(0)
+groups = list(df.groupby(['Prospect','BHID','Layer']))
 comps = []
-for i, ((bhid, layer), g) in enumerate(groups):
+for i, ((prospect, bhid, layer), g) in enumerate(groups):
     avg = {
+        'Prospect': prospect,
         'BHID': bhid,
         'Layer': layer,
         'From': g['From'].min(),
@@ -77,7 +82,7 @@ composite['Percent'] = composite['Thickness'] / composite['Total_Depth'] * 100
 st.success("✅ Compositing selesai!")
 
 # ====================================
-# 3. Konversi Koordinat
+# 4. Konversi Koordinat
 # ====================================
 st.info("🌐 Konversi koordinat UTM zone 51S → WGS84")
 transformer = Transformer.from_crs("EPSG:32751","EPSG:4326",always_xy=True)
@@ -89,26 +94,34 @@ composite['Longitude'] = coords.map(lambda x: x[0])
 composite['Latitude']  = coords.map(lambda x: x[1])
 
 # ====================================
-# 4. Dashboard Ringkasan
+# 5. Dashboard Ringkasan
 # ====================================
 st.markdown("## 📊 Dashboard Ringkasan")
-col1, col2 = st.columns(2)
-col1.metric("🔢 Unique BHID", composite['BHID'].nunique())
-col2.metric("📦 Total Samples", len(df))
+col1, col2, col3 = st.columns(3)
+col1.metric("🔢 Unique Prospect", composite['Prospect'].nunique())
+col2.metric("🔢 Unique BHID", composite['BHID'].nunique())
+col3.metric("📦 Total Samples", len(df))
 
 # ====================================
-# 5. Filter Layer & BHID
+# 6. Filter Prospect, Layer & BHID
 # ====================================
-available_layers = ["All Layers"] + sorted(composite["Layer"].astype(str).unique())
-selected_layer = st.selectbox("🔍 Pilih Layer:", available_layers)
-layer_filtered = composite if selected_layer=="All Layers" else composite[composite["Layer"]==selected_layer]
+# Prospect filter
+available_prospects = ["All Prospects"] + sorted(composite['Prospect'].unique())
+selected_prospect = st.selectbox("🏷️ Filter Prospect:", available_prospects)
+df_p = composite if selected_prospect=="All Prospects" else composite[composite['Prospect']==selected_prospect]
 
-available_bhids = sorted(layer_filtered["BHID"].astype(str).unique())
-selected_bhids = st.multiselect("✅ Pilih BHID:", available_bhids)
-filtered = layer_filtered if not selected_bhids else layer_filtered[layer_filtered["BHID"].isin(selected_bhids)]
+# Layer filter
+available_layers = ["All Layers"] + sorted(df_p["Layer"].astype(str).unique())
+selected_layer = st.selectbox("🔍 Filter Layer:", available_layers)
+df_pl = df_p if selected_layer=="All Layers" else df_p[df_p["Layer"]==selected_layer]
+
+# BHID filter
+available_bhids = sorted(df_pl["BHID"].astype(str).unique())
+selected_bhids = st.multiselect("✅ Filter BHID:", available_bhids)
+filtered = df_pl if not selected_bhids else df_pl[df_pl["BHID"].isin(selected_bhids)]
 
 # ====================================
-# 6. Peta Titik Bor
+# 7. Peta Titik Bor
 # ====================================
 st.markdown("### 🗺️ Peta Titik Bor")
 if not filtered.empty:
@@ -121,32 +134,37 @@ if not filtered.empty:
             [r['Latitude'], r['Longitude']],
             radius=5, color='blue',
             fill=True, fill_opacity=0.7,
-            popup=f"BHID: {r['BHID']}<br>Layer: {r['Layer']}<br>Ni: {r['Ni']:.2f}"
+            popup=(
+                f"Prospect: {r['Prospect']}<br>"
+                f"BHID: {r['BHID']}<br>"
+                f"Layer: {r['Layer']}<br>"
+                f"Ni: {r['Ni']:.2f}"
+            )
         ).add_to(m)
     st_folium(m, height=400, use_container_width=True)
 else:
     st.warning("Tidak ada data untuk peta.")
 
 # ====================================
-# 7. Tabel Composite
+# 8. Tabel Composite
 # ====================================
 st.markdown("### 📋 Tabel Composite")
-cols_show = ['BHID','Layer','From','To','Thickness','Percent'] + unsur
+cols_show = ['Prospect','BHID','Layer','From','To','Thickness','Percent'] + unsur
 st.dataframe(filtered[cols_show], use_container_width=True)
 
 # ====================================
-# 8. Tabel Ringkasan (Coord + Depth)
+# 9. Tabel Ringkasan (Coord + Depth)
 # ====================================
 st.markdown("### 📍 Koordinat Collar UTM & Total Depth")
 summary = (
-    composite[['BHID','XCollar','YCollar','ZCollar','Total_Depth']]
+    composite[['Prospect','BHID','XCollar','YCollar','ZCollar','Total_Depth']]
     .drop_duplicates()
-    .sort_values('BHID')
+    .sort_values(['Prospect','BHID'])
 )
 st.dataframe(summary, use_container_width=True)
 
 # ====================================
-# 9. Download Excel (2 sheets)
+# 10. Download Excel (2 sheets)
 # ====================================
 st.markdown("### 💾 Unduh Hasil")
 out = BytesIO()
