@@ -20,10 +20,17 @@ layer_mapping = {'TP': 100, 'L': 200, 'LO': 250, 'S': 300, 'BR': 400}
 # ---- Upload file Excel ----
 uploaded_file = st.file_uploader("Upload file Excel bor (.xlsx)", type=["xlsx"])
 if uploaded_file is not None:
-    # Load dataframe
     df = pd.read_excel(uploaded_file)
 
-    # Required columns
+    # Jika Thickness tidak ada, hitung dari To - From
+    if 'Thickness' not in df.columns:
+        if ('To' in df.columns) and ('From' in df.columns):
+            df['Thickness'] = df['To'] - df['From']
+        else:
+            st.error("Kolom 'Thickness' tidak ditemukan, dan kolom 'From' atau 'To' juga tidak lengkap.")
+            st.stop()
+
+    # Pastikan semua kolom penting ada
     required_cols = ['BHID', 'From', 'To', 'Layer', 'Thickness', 'X', 'Y', 'XCollar', 'YCollar', 'ZCollar'] + unsur
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
@@ -92,7 +99,7 @@ if uploaded_file is not None:
     # Buat GeoDataFrame untuk peta
     gdf = gpd.GeoDataFrame(
         composite,
-        geometry=gpd.points_from_xy(composite['Y'], composite['X']),  # Note: Pastikan urutan x,y benar, biasanya longitude=x, latitude=y
+        geometry=gpd.points_from_xy(composite['Y'], composite['X']),
         crs="EPSG:4326"
     )
 
