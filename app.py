@@ -166,13 +166,17 @@ with tab_data:
 # ============ TAB 2: VISUALISASI ============
 with tab_vis:
     st.markdown("### 📈 Visualisasi Komposit")
+
+    # ------------------- TERNARY + MC BOX -------------------
     col1, col2 = st.columns(2)
 
+    # TERNARY PLOT
     with col1:
         st.markdown("#### 🔺 Ternary Plot (SiO₂ - MgO - FeO)")
         ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
         ternary_data['Layer'] = ternary_data['Layer'].astype(int)
         ternary_data['Layer_Label'] = ternary_data['Layer'].map(layer_names)
+
         fig_tern = px.scatter_ternary(
             ternary_data,
             a='SiO2', b='MgO', c='FeO',
@@ -181,9 +185,14 @@ with tab_vis:
             hover_name='BHID',
             size_max=8
         )
-        fig_tern.update_layout(height=500)
+        fig_tern.update_layout(
+            height=500,
+            margin=dict(t=40, b=40, l=20, r=20),
+            title_font_size=16
+        )
         st.plotly_chart(fig_tern, use_container_width=True)
 
+    # BOX PLOT MC
     with col2:
         st.markdown("#### 📦 Box Plot MC per Layer")
         fig_box = go.Figure()
@@ -204,45 +213,49 @@ with tab_vis:
             yaxis_title="MC (%)",
             xaxis_title="Layer",
             height=500,
-            showlegend=False
+            showlegend=False,
+            margin=dict(t=40, b=40, l=20, r=20),
         )
         st.plotly_chart(fig_box, use_container_width=True)
-st.markdown("#### ⚖️ Box Plot Densitas (Wet Meas vs Wet Arch)")
 
-# Ambil data hanya untuk Limonit dan Saprolit, dan hanya jika kedua kolom tidak null
-dens_data = df_clean[
-    df_clean['Layer'].isin([200, 300]) &
-    df_clean['Dens_WetMeas'].notna() &
-    df_clean['Dens_WetArch'].notna()
-].copy()
+    # ------------------- BOX PLOT DENSITAS -------------------
+    st.markdown("#### ⚖️ Box Plot Densitas Basah per Layer (Limonit & Saprolit)")
 
-# Ubah ke bentuk long untuk visualisasi
-dens_long = pd.melt(
-    dens_data,
-    id_vars=['Layer'],
-    value_vars=['Dens_WetMeas', 'Dens_WetArch'],
-    var_name='Jenis Densitas',
-    value_name='Nilai'
-)
+    # Filter data Limonit & Saprolit, dan buang NaN
+    df_dens = df_clean[
+        df_clean['Layer'].isin([200, 300]) &
+        df_clean['Dens_WetMeas'].notna() &
+        df_clean['Dens_WetArch'].notna()
+    ].copy()
 
-# Tambahkan label layer
-dens_long['Layer_Label'] = dens_long['Layer'].map({
-    200: 'Limonit',
-    300: 'Saprolit'
-})
+    # Long format
+    df_dens_long = pd.melt(
+        df_dens,
+        id_vars=['Layer'],
+        value_vars=['Dens_WetMeas', 'Dens_WetArch'],
+        var_name='Tipe Densitas',
+        value_name='Nilai'
+    )
 
-# Buat box plot
-fig_dens = px.box(
-    dens_long,
-    x='Layer_Label',
-    y='Nilai',
-    color='Jenis Densitas',
-    points='all',
-    title="Box Plot Densitas Basah per Layer (Hanya Limonit & Saprolit)"
-)
-fig_dens.update_layout(
-    yaxis_title="Densitas (gr/cm³)",
-    xaxis_title="Layer",
-    boxmode='group'
-)
-st.plotly_chart(fig_dens, use_container_width=True)
+    df_dens_long['Layer_Label'] = df_dens_long['Layer'].map({
+        200: 'Limonit',
+        300: 'Saprolit'
+    })
+
+    # Plot
+    fig_dens = px.box(
+        df_dens_long,
+        x='Layer_Label',
+        y='Nilai',
+        color='Tipe Densitas',
+        points='all',
+        title="Box Plot Densitas Basah (Wet Meas vs Wet Arch) - Limonit & Saprolit"
+    )
+    fig_dens.update_layout(
+        yaxis_title="Densitas (gr/cm³)",
+        xaxis_title="Layer",
+        boxmode='group',
+        height=500,
+        margin=dict(t=40, b=40, l=20, r=20),
+    )
+    st.plotly_chart(fig_dens, use_container_width=True)
