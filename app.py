@@ -2,48 +2,50 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from pyproj import Transformer
+import geopandas as gpd
 import folium
 from streamlit_folium import st_folium
 from io import BytesIO
 import tempfile
 import zipfile
-import geopandas as gpd
-from folium import Element
+import os
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Dashboard + Filter + Shapefile")
+st.title("🗂️ Composite Data Bor + Dashboard + SHP Overlay")
 
 # ====================================
-# 1. Upload & Read Excel
+# 1. Upload File Excel
 # ====================================
-uploaded_file = st.file_uploader("📤 Upload file Excel (.xlsx) hasil eksplorasi", type=["xlsx"])
+uploaded_file = st.file_uploader("📤 Upload file Excel eksplorasi (.xlsx)", type=["xlsx"])
 if not uploaded_file:
-    st.info("Silakan upload file Excel dengan kolom Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
+    st.info("Silakan upload file Excel dengan kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
 df_raw = pd.read_excel(uploaded_file)
 
 # ====================================
-# 2. Prepare & Composite
+# 2. Cleaning & Composite
 # ====================================
-unsur = ['Ni', 'Co', 'Fe2O3', 'Fe', 'FeO', 'SiO2', 'CaO', 'MgO', 'MnO', 'Cr2O3', 'Al2O3', 'P2O5', 'TiO2', 'SO3', 'LOI', 'MC']
+unsur = [
+    'Ni','Co','Fe2O3','Fe','FeO','SiO2',
+    'CaO','MgO','MnO','Cr2O3','Al2O3',
+    'P2O5','TiO2','SO3','LOI','MC'
+]
+
 if 'Thickness' not in df_raw.columns:
     df_raw['Thickness'] = df_raw['To'] - df_raw['From']
 
-required = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','XCollar','YCollar','ZCollar'] + unsur
-missing = [c for c in required if c not in df_raw.columns]
+required_cols = ['Prospect','Bukit','BHID','Layer','From','To','Thickness',
+                 'XCollar','YCollar','ZCollar'] + unsur
+missing = [c for c in required_cols if c not in df_raw.columns]
 if missing:
     st.error(f"❌ Kolom hilang: {missing}")
     st.stop()
 
-df = (
-    df_raw[required]
-    .dropna(subset=['Prospect','Bukit','BHID','Layer','Thickness','XCollar','YCollar'])
-    .query("Thickness > 0")
-)
+df = df_raw[required_cols].dropna(subset=['Prospect','Bukit','BHID','Layer','Thickness','XCollar','YCollar'])
+df = df[df['Thickness'] > 0]
 
-# Composite
-st.info("🔁 Mulai compositing per Prospect → Bukit → BHID → Layer...")
+st.info("🔁 Compositing per Prospect → Bukit → BHID → Layer...")
 progress = st.progress(0)
 groups = list(df.groupby(['Prospect','Bukit','BHID','Layer']))
 comps = []
@@ -66,24 +68,25 @@ for i, ((prospect, bukit, bhid, layer), g) in enumerate(groups):
     progress.progress((i+1)/len(groups))
 composite = pd.DataFrame(comps)
 
-# Total depth
 depth = df.groupby('BHID')['To'].max().rename('Total_Depth')
 composite = composite.join(depth, on='BHID')
 composite['Percent'] = composite['Thickness'] / composite['Total_Depth'] * 100
 
 # ====================================
-# 3. Koordinat UTM ke WGS84
+# 3. Koordinat ke WGS84
 # ====================================
-st.info("🌐 Konversi koordinat UTM zone 51S → WGS84")
+st.info("🌐 Konversi koordinat ke WGS84...")
 transformer = Transformer.from_crs("EPSG:32751", "EPSG:4326", always_xy=True)
 coords = composite.apply(lambda r: transformer.transform(r['XCollar'], r['YCollar']), axis=1)
 composite['Longitude'] = coords.map(lambda x: x[0])
 composite['Latitude'] = coords.map(lambda x: x[1])
 
 # ====================================
-# 4. Filter Sidebar
+# 4. Sidebar Filter
 # ====================================
 st.sidebar.header("🔍 Filter Data")
+
+# Filter berurutan
 prospect_opts = sorted(composite['Prospect'].unique())
 selected_prospect = st.sidebar.selectbox("🏷️ Prospect", ["All"] + prospect_opts)
 df_filter = composite if selected_prospect == "All" else composite[composite['Prospect'] == selected_prospect]
@@ -101,62 +104,81 @@ selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, defau
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
 # ====================================
-# 5. Dashboard
+# 5. Dashboard Ringkasan
 # ====================================
-st.markdown("## 📊 Dashboard Ringkasan")
+st.markdown("## 📊 Ringkasan Data")
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("🏷️ Jumlah Prospect", df_filter['Prospect'].nunique())
 col2.metric("⛰️ Jumlah Bukit", df_filter['Bukit'].nunique())
 col3.metric("🔢 Jumlah BHID", df_filter['BHID'].nunique())
-col4.metric("🧪 Jumlah Sampel", df[df['BHID'].isin(df_filter['BHID'])].shape[0])
+col4.metric("🧪 Jumlah Sampel Awal", df[df['BHID'].isin(df_filter['BHID'])].shape[0])
 
 # ====================================
-# 6. Peta + Shapefile
+# 6. Upload Shapefile ZIP
 # ====================================
-st.markdown("### 🗺️ Peta Titik Bor + Shapefile")
-m = folium.Map(location=[df_filter["Latitude"].mean(), df_filter["Longitude"].mean()], zoom_start=12)
-for _, r in df_filter.iterrows():
-    folium.CircleMarker(
-        [r['Latitude'], r['Longitude']],
-        radius=5, color='blue', fill=True, fill_opacity=0.7,
-        popup=f"<b>BHID:</b> {r['BHID']}<br><b>Layer:</b> {r['Layer']}"
-    ).add_to(m)
-
-# Tambah legenda
-legend_html = """
-<div style='position: fixed; bottom: 50px; right: 20px; z-index: 9999; background-color: white;
-     padding: 10px; border:2px solid grey; font-size:14px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);'>
-<b>Legenda:</b><br>
-<span style="background:blue; display:inline-block; width:10px; height:10px; border-radius:50%;"></span> Titik Bor<br>
-</div>
-"""
-m.get_root().html.add_child(Element(legend_html))
-
-# Upload shapefile
-st.markdown("### 📂 Tambahkan Shapefile (.zip)")
-shp_zip = st.file_uploader("📁 Upload file SHP (.zip)", type=["zip"])
-if shp_zip:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with zipfile.ZipFile(shp_zip, "r") as zip_ref:
-            zip_ref.extractall(tmpdir)
-        shp_gdf = gpd.read_file(tmpdir)
-        shp_gdf = shp_gdf.to_crs(epsg=4326)
-        folium.GeoJson(shp_gdf, name="Shapefile").add_to(m)
-
-# Tampilkan peta
-st_folium(m, use_container_width=True, height=500)
+st.markdown("### 📁 Upload Shapefile (.zip)")
+shp_zip = st.file_uploader("Upload file .zip yang berisi .shp, .shx, .dbf, dll", type=["zip"])
 
 # ====================================
-# 7. Tabel Composite
+# 7. Peta
+# ====================================
+st.markdown("### 🗺️ Peta Bor & Shapefile")
+if not df_filter.empty:
+    m = folium.Map(
+        location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()],
+        zoom_start=12
+    )
+
+    # Tambah titik bor
+    for _, r in df_filter.iterrows():
+        popup = (
+            f"Prospect: {r['Prospect']}<br>"
+            f"Bukit: {r['Bukit']}<br>"
+            f"BHID: {r['BHID']}<br>"
+            f"Layer: {r['Layer']}<br>"
+            f"Ni: {r['Ni']:.2f}"
+        )
+        folium.CircleMarker(
+            location=[r['Latitude'], r['Longitude']],
+            radius=5,
+            color='blue',
+            fill=True,
+            fill_opacity=0.7,
+            popup=popup
+        ).add_to(m)
+
+    # Tambah shapefile jika ada
+    if shp_zip is not None:
+        if shp_zip.name.endswith('.zip'):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with zipfile.ZipFile(shp_zip, "r") as zip_ref:
+                    zip_ref.extractall(tmpdir)
+
+                shp_files = [f for f in os.listdir(tmpdir) if f.endswith('.shp')]
+                if shp_files:
+                    shp_path = os.path.join(tmpdir, shp_files[0])
+                    shp_gdf = gpd.read_file(shp_path).to_crs(epsg=4326)
+                    folium.GeoJson(shp_gdf, name="Shapefile").add_to(m)
+                else:
+                    st.warning("❗️ File .shp tidak ditemukan di dalam .zip.")
+        else:
+            st.error("❌ Format harus .zip berisi file .shp, .shx, .dbf, dll.")
+
+    st_folium(m, height=450, use_container_width=True)
+else:
+    st.warning("Tidak ada data untuk ditampilkan di peta.")
+
+# ====================================
+# 8. Tabel Data Composite
 # ====================================
 st.markdown("### 📋 Tabel Composite")
-cols_show = ['Prospect', 'Bukit', 'BHID', 'Layer', 'From', 'To', 'Thickness', 'Percent'] + unsur
+cols_show = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','Percent'] + unsur
 st.dataframe(df_filter[cols_show], use_container_width=True)
 
 # ====================================
-# 8. Summary Koordinat & Total Depth
+# 9. Summary Koordinat + Depth
 # ====================================
-st.markdown("### 📍 Tabel Summary Koordinat & Total Depth")
+st.markdown("### 📍 Koordinat & Total Depth")
 summary = (
     df_filter[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']]
     .drop_duplicates()
@@ -165,15 +187,16 @@ summary = (
 st.dataframe(summary, use_container_width=True)
 
 # ====================================
-# 9. Download Excel
+# 10. Download Excel
 # ====================================
-st.markdown("### 💾 Unduh Excel (2 Sheet)")
+st.markdown("### 💾 Unduh Hasil")
 out = BytesIO()
 with pd.ExcelWriter(out, engine='openpyxl') as w:
     df_filter.to_excel(w, sheet_name='Composite', index=False)
     summary.to_excel(w, sheet_name='Summary', index=False)
+
 st.download_button(
-    label="⬇️ Download Excel",
+    label="⬇️ Download Excel (2 Sheet)",
     data=out.getvalue(),
     file_name="composite_filtered.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
