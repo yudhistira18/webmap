@@ -96,10 +96,17 @@ composite['Latitude']  = coords.map(lambda x: x[1])
 # 4. Dashboard Ringkasan
 # ====================================
 st.markdown("## 📊 Dashboard Ringkasan")
-col1, col2, col3 = st.columns(3)
+
+# Hitung total samples dan unique BHID
+total_samples = len(df)
+unique_bhid = df['BHID'].nunique()
+
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("🏷️ Unique Prospect", composite['Prospect'].nunique())
 col2.metric("⛰️ Unique Bukit", composite['Bukit'].nunique())
-col3.metric("🔢 Unique BHID", composite['BHID'].nunique())
+col3.metric("🔢 Unique BHID", unique_bhid)
+col4.metric("📦 Total Samples", total_samples)
+
 
 # ====================================
 # 5. Filter Prospect, Bukit, BHID, Layer
