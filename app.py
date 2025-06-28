@@ -4,9 +4,10 @@ import numpy as np
 import folium
 from streamlit_folium import st_folium
 from io import BytesIO
+from pyproj import Transformer
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Upload & Composite Data Bor (Python 3.13 Compatible)")
+st.title("🗂️ Composite Data Bor + Koordinat UTM ke WGS84")
 
 unsur = [
     'Ni', 'Co', 'Fe2O3', 'Fe', 'FeO', 'SiO2', 'CaO', 'MgO', 'MnO',
@@ -19,7 +20,6 @@ uploaded_file = st.file_uploader("Upload file Excel bor (.xlsx)", type=["xlsx"])
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Hitung Thickness jika belum ada
     if 'Thickness' not in df.columns and 'From' in df.columns and 'To' in df.columns:
         df['Thickness'] = df['To'] - df['From']
 
@@ -33,28 +33,44 @@ if uploaded_file is not None:
     df = df.dropna(subset=['BHID', 'Layer', 'Thickness', 'X', 'Y'])
     df = df[df['Thickness'] > 0]
 
-    # Compositing per BHID & Layer
-    def weighted_avg(group):
-        result = {
-            'From': group['From'].min(),
-            'To': group['To'].max(),
-            'Thickness': group['Thickness'].sum()
-        }
-        for u in unsur:
-            if group[u].notna().any():
-                result[u] = np.average(group[u], weights=group['Thickness'])
-            else:
-                result[u] = np.nan
-        result['X'] = group['X'].iloc[0]
-        result['Y'] = group['Y'].iloc[0]
-        result['XCollar'] = group['XCollar'].iloc[0]
-        result['YCollar'] = group['YCollar'].iloc[0]
-        result['ZCollar'] = group['ZCollar'].iloc[0]
-        return pd.Series(result)
+    # Spinner & progress bar saat compositing
+    with st.spinner("⏳ Sedang memproses composite per BHID dan Layer..."):
+        progress = st.progress(0, text="Memulai komposit data...")
 
-    composite = df.groupby(['BHID', 'Layer']).apply(weighted_avg).reset_index()
+        def weighted_avg(group):
+            result = {
+                'From': group['From'].min(),
+                'To': group['To'].max(),
+                'Thickness': group['Thickness'].sum()
+            }
+            for u in unsur:
+                if group[u].notna().any():
+                    result[u] = np.average(group[u], weights=group['Thickness'])
+                else:
+                    result[u] = np.nan
+            result['X'] = group['X'].iloc[0]
+            result['Y'] = group['Y'].iloc[0]
+            result['XCollar'] = group['XCollar'].iloc[0]
+            result['YCollar'] = group['YCollar'].iloc[0]
+            result['ZCollar'] = group['ZCollar'].iloc[0]
+            return pd.Series(result)
 
-    # Mapping layer & total depth
+        groups = df.groupby(['BHID', 'Layer'])
+        total_groups = len(groups)
+        composite_rows = []
+
+        for i, ((bhid, layer), group) in enumerate(groups):
+            result = weighted_avg(group)
+            composite_rows.append([bhid, layer] + list(result))
+            progress.progress((i + 1) / total_groups, text=f"Proses {i+1}/{total_groups} — BHID: {bhid}, Layer: {layer}")
+
+        composite = pd.DataFrame(composite_rows)
+        composite.columns = ['BHID', 'Layer'] + list(weighted_avg(df.iloc[0:1]).index)
+
+    progress.empty()
+    st.success("✅ Proses compositing selesai!")
+
+    # Tambah info lanjutan
     composite['Layer_Code'] = composite['Layer'].map(layer_mapping)
     composite['Layer_Code'] = composite['Layer_Code'].fillna(pd.to_numeric(composite['Layer'], errors='coerce'))
 
@@ -64,19 +80,25 @@ if uploaded_file is not None:
     composite['Percent'] = (composite['Thickness'] / composite['Total_Depth']) * 100
     composite['Organic_Limonite'] = composite['Layer_Code'].apply(lambda x: 'LO' if x == 250 else '')
 
+    # Konversi koordinat UTM 51S → WGS84
+    transformer = Transformer.from_crs("EPSG:32751", "EPSG:4326", always_xy=True)
+    lon_lat = composite.apply(lambda row: transformer.transform(row["XCollar"], row["YCollar"]), axis=1)
+    composite["Longitude"] = lon_lat.apply(lambda x: x[0])
+    composite["Latitude"] = lon_lat.apply(lambda x: x[1])
+
     # Urutkan kolom
-    cols_order = ['BHID', 'XCollar', 'YCollar', 'ZCollar'] + \
-                 [col for col in composite.columns if col not in ['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Organic_Limonite']] + ['Organic_Limonite']
+    cols_order = ['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Longitude', 'Latitude'] + \
+                 [col for col in composite.columns if col not in ['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Longitude', 'Latitude', 'Organic_Limonite']] + ['Organic_Limonite']
     composite = composite[cols_order]
 
     st.markdown("### 📋 Tabel Composite")
     st.dataframe(composite, use_container_width=True)
 
-    # Peta Folium
+    # Peta
     st.markdown("### 🗺️ Peta Titik Bor")
     if not composite.empty:
         m = folium.Map(
-            location=[composite['Y'].mean(), composite['X'].mean()],
+            location=[composite['Latitude'].mean(), composite['Longitude'].mean()],
             zoom_start=12
         )
         for _, row in composite.iterrows():
@@ -88,9 +110,9 @@ if uploaded_file is not None:
                 f"<b>Percent:</b> {row['Percent']:.2f} %"
             )
             folium.CircleMarker(
-                location=[row['Y'], row['X']],
+                location=[row['Latitude'], row['Longitude']],
                 radius=6,
-                color='blue',
+                color='green',
                 fill=True,
                 fill_opacity=0.7,
                 popup=popup
@@ -98,17 +120,17 @@ if uploaded_file is not None:
 
         st_folium(m, height=450, use_container_width=True)
 
-    # Tombol download Excel
-    st.markdown("### 💾 Download Excel")
+    # Tombol download
+    st.markdown("### 💾 Download Hasil")
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         composite.to_excel(writer, sheet_name='Layer_Composite', index=False)
         depth.to_excel(writer, sheet_name='Total_Depth', index=False)
     st.download_button(
-        label="⬇️ Download Composite Excel",
+        label="⬇️ Download Excel",
         data=output.getvalue(),
-        file_name="composite_output.xlsx",
+        file_name="composite_with_coords.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 else:
-    st.info("Silakan upload file Excel untuk memulai.")
+    st.info("Silakan upload file Excel terlebih dahulu.")
