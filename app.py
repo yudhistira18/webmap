@@ -10,9 +10,9 @@ from streamlit_folium import st_folium
 from io import BytesIO
 import tempfile
 
-# ========== Konfigurasi App ==========
+# ========== Konfigurasi ==========
 st.set_page_config(layout="wide")
-st.title("🛠️ Composite Data Bor + Clean Excel + Konversi Koordinat")
+st.title("🛠️ Composite Data Bor + Clean Excel + Koordinat + Peta")
 
 unsur = [
     'Ni', 'Co', 'Fe2O3', 'Fe', 'FeO', 'SiO2', 'CaO', 'MgO', 'MnO',
@@ -28,24 +28,28 @@ if uploaded_file is not None:
         tmp.write(uploaded_file.read())
         temp_path = tmp.name
 
-    # ========== STEP 1: CLEAN FILE EXCEL ==========
+    # ========== STEP 1: CLEAN EXCEL ==========
     st.subheader("🧼 Step 1: Membersihkan Formatting Excel")
-    raw_excel = pd.read_excel(temp_path, sheet_name=None)  # Read all sheets
+    progress1 = st.progress(0, text="📄 Membaca dan membersihkan file Excel...")
+    raw_excel = pd.read_excel(temp_path, sheet_name=None)
 
     cleaned_buffer = BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
-    for sheet_name, df in raw_excel.items():
+    sheet_count = len(raw_excel)
+    for i, (sheet_name, df) in enumerate(raw_excel.items()):
         ws = wb.create_sheet(title=sheet_name)
         for row in dataframe_to_rows(df, index=False, header=True):
             ws.append(row)
+        progress1.progress((i + 1) / sheet_count, text=f"🧹 Membersihkan sheet: {sheet_name}")
 
     wb.save(cleaned_buffer)
     cleaned_buffer.seek(0)
-    st.success("File berhasil dibersihkan dari conditional formatting, extension, dsb.")
+    progress1.empty()
+    st.success("✅ File berhasil dibersihkan dari formatting dan extension.")
 
-    # ========== STEP 2: LOAD SHEET & VALIDASI ==========
+    # ========== STEP 2: LOAD DAN VALIDASI ==========
     df = pd.read_excel(cleaned_buffer, sheet_name=0)
 
     if 'Thickness' not in df.columns and 'From' in df.columns and 'To' in df.columns:
@@ -55,7 +59,7 @@ if uploaded_file is not None:
                      'XCollar', 'YCollar', 'ZCollar'] + unsur
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
-        st.error(f"Kolom berikut tidak ditemukan: {missing}")
+        st.error(f"❌ Kolom berikut tidak ditemukan: {missing}")
         st.stop()
 
     df = df[required_cols].copy()
@@ -64,7 +68,7 @@ if uploaded_file is not None:
 
     # ========== STEP 3: COMPOSITING ==========
     st.subheader("🔁 Step 2: Compositing per BHID + Layer")
-    progress = st.progress(0, text="Memulai proses composite...")
+    progress2 = st.progress(0, text="🔄 Proses composite...")
 
     def weighted_avg(group):
         result = {
@@ -88,16 +92,15 @@ if uploaded_file is not None:
     grouped = df.groupby(['BHID', 'Layer'])
     for i, ((bhid, layer), group) in enumerate(grouped):
         composite_rows.append([bhid, layer] + list(weighted_avg(group)))
-        progress.progress((i + 1) / len(grouped), text=f"{i+1}/{len(grouped)}: {bhid} - {layer}")
-    progress.empty()
+        progress2.progress((i + 1) / len(grouped), text=f"⛏️ Composite: {bhid} - {layer}")
+    progress2.empty()
 
     composite = pd.DataFrame(composite_rows)
     composite.columns = ['BHID', 'Layer'] + list(weighted_avg(df.iloc[0:1]).index)
-    st.success("Compositing selesai!")
 
-    # Tambahan informasi
     composite['Layer_Code'] = composite['Layer'].map(layer_mapping)
     composite['Layer_Code'] = composite['Layer_Code'].fillna(pd.to_numeric(composite['Layer'], errors='coerce'))
+
     depth = df.groupby('BHID')['To'].max().reset_index()
     depth.columns = ['BHID', 'Total_Depth']
     composite = composite.merge(depth, on='BHID', how='left')
@@ -115,8 +118,8 @@ if uploaded_file is not None:
     composite['Longitude'] = geo_df.geometry.x
     composite['Latitude'] = geo_df.geometry.y
 
-    # ========== STEP 5: TABEL + PETA ==========
-    st.subheader("📋 Data Hasil Composite")
+    # ========== STEP 5: TABEL & PETA ==========
+    st.subheader("📋 Tabel Hasil Composite")
     st.dataframe(composite, use_container_width=True)
 
     st.subheader("🗺️ Peta Titik Bor")
@@ -139,24 +142,26 @@ if uploaded_file is not None:
             ).add_to(m)
         st_folium(m, height=400, use_container_width=True)
 
-    # ========== STEP 6: DOWNLOAD ==========
-    st.subheader("💾 Unduh Hasil")
+    # ========== STEP 6: UNDUH HASIL ==========
+    st.subheader("💾 Unduh Excel (Semua Sheet)")
+    summary_table = composite[['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Total_Depth']].drop_duplicates()
+    summary_table = summary_table.sort_values(by='BHID')
+
     out_buffer = BytesIO()
     with pd.ExcelWriter(out_buffer, engine='openpyxl') as writer:
         composite.to_excel(writer, sheet_name='Layer_Composite', index=False)
         depth.to_excel(writer, sheet_name='Total_Depth', index=False)
+        summary_table.to_excel(writer, sheet_name='Koordinat_Collar', index=False)
+
     st.download_button(
-        label="⬇️ Download Excel (Composite + Koordinat)",
+        label="⬇️ Download Excel (Composite + Semua Sheet)",
         data=out_buffer.getvalue(),
-        file_name="composite_cleaned.xlsx",
+        file_name="composite_output.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     # ========== STEP 7: TABEL KOORDINAT COLLAR ==========
-    st.subheader("📏 Tabel Koordinat Collar (UTM) + Total Depth per BHID")
-
-    summary_table = composite[['BHID', 'XCollar', 'YCollar', 'ZCollar', 'Total_Depth']].drop_duplicates()
-    summary_table = summary_table.sort_values(by='BHID')
+    st.subheader("📏 Tabel Koordinat Collar (UTM) + Total Kedalaman")
     st.dataframe(summary_table, use_container_width=True)
 
 else:
