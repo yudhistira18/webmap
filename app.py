@@ -76,28 +76,35 @@ composite['Longitude'] = lonlat.map(lambda x: x[0])
 composite['Latitude'] = lonlat.map(lambda x: x[1])
 
 # ============ SIDEBAR FILTER ============
+
 st.sidebar.header("🔍 Filter Data")
+
+# PROSPECT
 prospect_opts = sorted(composite['Prospect'].unique())
 selected_prospect = st.sidebar.selectbox("🏷️ Prospect", ["All"] + prospect_opts)
 df_filter = composite if selected_prospect == "All" else composite[composite['Prospect'] == selected_prospect]
 
+# BUKIT
 bukit_opts = sorted(df_filter['Bukit'].unique())
-selected_bukit = st.sidebar.multiselect("⛰️ Bukit", options=bukit_opts, default=bukit_opts)
-df_filter = df_filter[df_filter['Bukit'].isin(selected_bukit)]
+select_all_bukit = st.sidebar.checkbox("Pilih semua bukit", value=True)
+selected_bukit = st.sidebar.multiselect("⛰️ Bukit", options=bukit_opts, default=bukit_opts if select_all_bukit else [])
+if selected_bukit:
+    df_filter = df_filter[df_filter['Bukit'].isin(selected_bukit)]
 
+# BHID
 bhid_opts = sorted(df_filter['BHID'].unique())
-selected_bhids = st.sidebar.multiselect("🔢 BHID", options=bhid_opts, default=bhid_opts)
-df_filter = df_filter[df_filter['BHID'].isin(selected_bhids)]
+select_all_bhid = st.sidebar.checkbox("Pilih semua BHID", value=True)
+selected_bhids = st.sidebar.multiselect("🔢 BHID", options=bhid_opts, default=bhid_opts if select_all_bhid else [])
+if selected_bhids:
+    df_filter = df_filter[df_filter['BHID'].isin(selected_bhids)]
 
+# LAYER
 layer_opts = sorted(df_filter['Layer'].astype(str).unique())
-selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
-df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
+select_all_layers = st.sidebar.checkbox("Pilih semua layer", value=True)
+selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts if select_all_layers else [])
+if selected_layers:
+    df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
-# Filter untuk df_clean agar visualisasi ikut filter
-df_clean_filtered = df_clean[
-    df_clean['BHID'].isin(selected_bhids) &
-    df_clean['Layer'].astype(str).isin(selected_layers)
-]
 
 # ============ WARNA & LABEL LAYER ============
 layer_names = {
