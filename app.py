@@ -208,8 +208,6 @@ boxplot_data['Layer_Label'] = boxplot_data['Layer'].map({
 })
 boxplot_data['Color'] = boxplot_data['Layer'].map(color_map)
 
-# Plot dengan plotly
-import plotly.express as px
 fig_box = px.box(
     boxplot_data,
     x='Layer_Label',
@@ -222,8 +220,15 @@ fig_box = px.box(
         300: 'Saprolit',
         400: 'Bedrock'
     }.items()},
-    points='all',  # Menampilkan semua titik (jittered)
-    title='Distribusi MC (Moisture Content) per Layer'
+    points='all',
 )
-fig_box.update_layout(xaxis_title="Layer", yaxis_title="MC (%)")
+
+fig_box.update_traces(jitter=0.3, marker_opacity=0.6, marker_size=5)
+fig_box.update_layout(
+    title='Distribusi MC (Moisture Content) per Layer',
+    xaxis_title="Layer",
+    yaxis_title="MC (%)",
+    boxmode='overlay'
+)
 st.plotly_chart(fig_box, use_container_width=True)
+
