@@ -124,7 +124,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("🏷️ Jumlah Prospect", df_filter['Prospect'].nunique())
 col2.metric("⛰️ Jumlah Bukit", df_filter['Bukit'].nunique())
 col3.metric("🔢 Jumlah BHID", df_filter['BHID'].nunique())
-col4.metric("🧪 Jumlah Sampel (row awal)", df[df['BHID'].isin(df_filter['BHID'])].shape[0])
+col4.metric("🧪 Jumlah Sampel (Per BHID)", df[df['BHID'].isin(df_filter['BHID'])].shape[0])
 
 # ====================================
 # 6. Peta Titik Bor
