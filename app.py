@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============ FILE UPLOAD ============
-uploaded_file = st.file_uploader("📄 Upload file Excel (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("📄 Upload file Excel (.xlsx) (JANGAN ADA CONDITIONAL FORMATTING/ATAU MULTIPLE SHEETS", type=["xlsx"])
 if not uploaded_file:
     st.info("Silakan upload file Excel yang berisi kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
