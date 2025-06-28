@@ -2,29 +2,34 @@ import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium  # gunakan st_folium (recommended)
 
 st.set_page_config(layout="wide")
-st.title("Peta & Tabel Titik Bor Hasil Composite")
+st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 
-# Load GeoJSON
+# Load GeoJSON hasil export dari GEE
 gdf = gpd.read_file("composite_bor.geojson")
 
-# Dropdown filter layer
+# Dropdown filter berdasarkan layer
 available_layers = sorted(gdf['Layer'].unique().tolist())
-selected_layer = st.selectbox("Pilih Layer yang ingin ditampilkan:", options=available_layers)
+selected_layer = st.selectbox("🔍 Pilih Layer:", options=available_layers)
 
-# Filter data berdasarkan pilihan layer
+# Filter data berdasarkan layer yang dipilih
 filtered_gdf = gdf[gdf['Layer'] == selected_layer]
 
-# Buat peta folium
-m = folium.Map(location=[filtered_gdf.geometry.y.mean(), filtered_gdf.geometry.x.mean()], zoom_start=12)
+# Peta folium
+m = folium.Map(
+    location=[filtered_gdf.geometry.y.mean(), filtered_gdf.geometry.x.mean()],
+    zoom_start=12
+)
 
+# Tambahkan marker ke peta
 for _, row in filtered_gdf.iterrows():
     popup = (
         f"<b>BHID:</b> {row['BHID']}<br>"
         f"<b>Layer:</b> {row['Layer']}<br>"
         f"<b>Ni:</b> {row['Ni']:.2f}<br>"
+        f"<b>Fe:</b> {row['Fe']:.2f}"
     )
     folium.CircleMarker(
         location=[row.geometry.y, row.geometry.x],
@@ -35,27 +40,26 @@ for _, row in filtered_gdf.iterrows():
         popup=popup
     ).add_to(m)
 
-folium_static(m)
+# Tampilkan peta di Streamlit
+st_data = st_folium(m, use_container_width=True)
 
-# =========================================
-# TAMPILKAN TABEL COMPOSITE PER LAYER
-# =========================================
+# =======================
+# TABEL COMPOSITE PER LAYER
+# =======================
+st.subheader(f"📋 Tabel Data Composite - Layer: {selected_layer}")
 
-st.subheader("📋 Tabel Data Composite - Layer: " + selected_layer)
-
-# Kolom penting unsur dan info
 unsur_cols = [
     'BHID', 'Layer', 'From', 'To', 'Thickness', 'Percent',
-    'Ni', 'Co', 'Fe', 'Fe2O3', 'FeO', 'SiO2', 'MgO', 'Al2O3'
+    'Ni', 'Fe', 'Co', 'MgO', 'Al2O3', 'SiO2', 'LOI'
 ]
 
 composite_table = pd.DataFrame(filtered_gdf[unsur_cols])
 st.dataframe(composite_table.style.format(precision=2), use_container_width=True)
 
-# =========================================
-# TABEL TOTAL DEPTH PER BHID
-# =========================================
-
+# =======================
+# TABEL TOTAL DEPTH
+# =======================
 st.subheader("📏 Total Depth per BHID")
-total_depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
-st.dataframe(total_depth_table.sort_values('BHID'), use_container_width=True)
+depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
+st.dataframe(depth_table.sort_values('BHID'), use_container_width=True)
+
