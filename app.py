@@ -100,10 +100,10 @@ layer_opts = sorted(df_filter['Layer'].astype(str).unique())
 selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
-# 7 + 8. Ringkasan & Peta dalam 2 kolom
+# 7 + 8. Ringkasan & Peta Lebar Layar
 st.markdown("## 📊 Ringkasan & 🗺️ Peta")
 
-col1, col2 = st.columns([1, 2])  # col1 lebih sempit
+col1, col2 = st.columns([1, 4])  # col1 kecil, col2 besar
 
 with col1:
     st.markdown("#### 📋 Info Ringkas")
@@ -126,9 +126,10 @@ with col2:
                        f"Layer: {r['Layer']}<br>"
                        f"Ni: {r['Ni']:.2f}")
             ).add_to(m)
-        st_folium(m, height=500)
+        st_folium(m, height=500, use_container_width=True)
     else:
         st.warning("Tidak ada data ditampilkan pada peta.")
+
 
 # Checkbox untuk menampilkan data asli
 st.markdown("### 📋 Tabel Data")
