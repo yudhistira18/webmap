@@ -6,7 +6,7 @@ import folium
 from streamlit_folium import st_folium
 from io import BytesIO
 import plotly.express as px
-import plotly.graph_objects as go
+
 st.set_page_config(layout="wide")
 st.title("🗂️ Composite Data Bor")
 
@@ -159,11 +159,41 @@ st.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-# ========================
-# 📈 Visualisasi
-# ========================
-import plotly.graph_objects as go  # pastikan ini diimpor
-st.markdown("## 📈 Visualisasi")
+# Ternary Plot
+st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+
+ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
+ternary_data['Layer'] = ternary_data['Layer'].astype(int)
+
+color_map = {
+    100: 'gray',    # Top Soil
+    200: 'red',     # Limonit
+    250: 'black',   # Limonit Organik
+    300: 'green',   # Saprolit
+    400: 'blue',    # Bedrock
+}
+label_map = {
+    100: "Top Soil",
+    200: "Limonit",
+    250: "Limonit Organik",
+    300: "Saprolit",
+    400: "Bedrock"
+}
+ternary_data['Color'] = ternary_data['Layer'].map(color_map)
+ternary_data['Layer_Label'] = ternary_data['Layer'].map(label_map)
+
+fig = px.scatter_ternary(
+    ternary_data,
+    a='SiO2', b='MgO', c='FeO',
+    color='Layer_Label',
+    color_discrete_map={v: color_map[k] for k, v in label_map.items()},
+    hover_name='BHID',
+    size_max=8
+)
+fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
+st.plotly_chart(fig, use_container_width=True)
+
+import plotly.graph_objects as go
 
 # Layer dan warna
 layer_names = {
@@ -181,51 +211,26 @@ color_map = {
     400: 'blue'
 }
 
-# Tabs
-tab1, tab2 = st.tabs(["🔺 Ternary Plot", "📦 Box Plot MC"])
+# Siapkan trace untuk tiap layer
+fig = go.Figure()
+for layer_code, layer_label in layer_names.items():
+    df_layer = df_clean[df_clean['Layer'] == layer_code]
+    fig.add_trace(go.Box(
+        y=df_layer['MC'],
+        name=f"{layer_code} - {layer_label}",
+        marker_color=color_map[layer_code],
+        boxpoints='all',  # ini bikin titik menyatu
+        jitter=0.4,
+        pointpos=0,
+        marker=dict(opacity=0.6, size=4),
+        line=dict(width=1)
+    ))
 
-# ==== Tab 1: Ternary Plot ====
-with tab1:
-    st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+fig.update_layout(
+    title="📦 Box Plot MC per Layer",
+    yaxis_title="MC (%)",
+    xaxis_title="Layer",
+    showlegend=False
+)
 
-    ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
-    ternary_data['Layer'] = ternary_data['Layer'].astype(int)
-    ternary_data['Layer_Label'] = ternary_data['Layer'].map(layer_names)
-
-    fig_tern = px.scatter_ternary(
-        ternary_data,
-        a='SiO2', b='MgO', c='FeO',
-        color='Layer_Label',
-        color_discrete_map={name: color_map[code] for code, name in layer_names.items()},
-        hover_name='BHID',
-        size_max=8
-    )
-    fig_tern.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
-    st.plotly_chart(fig_tern, use_container_width=True)
-
-# ==== Tab 2: Box Plot MC ====
-with tab2:
-    st.markdown("### 📦 Box Plot MC per Layer")
-
-    fig_box = go.Figure()
-    for layer_code, layer_label in layer_names.items():
-        df_layer = df_clean[df_clean['Layer'] == layer_code]
-        if not df_layer.empty:
-            fig_box.add_trace(go.Box(
-                y=df_layer['MC'],
-                name=f"{layer_code} - {layer_label}",
-                marker_color=color_map[layer_code],
-                boxpoints='all',
-                jitter=0.4,
-                pointpos=0,
-                marker=dict(opacity=0.6, size=4),
-                line=dict(width=1)
-            ))
-
-    fig_box.update_layout(
-        title="Box Plot MC per Layer",
-        yaxis_title="MC (%)",
-        xaxis_title="Layer",
-        showlegend=False
-    )
-    st.plotly_chart(fig_box, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
