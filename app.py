@@ -2,9 +2,35 @@ import streamlit as st
 import geopandas as gpd
 import pandas as pd
 import folium
-from streamlit_folium import st_folium  # gunakan st_folium (recommended)
+from streamlit_folium import st_folium
+import io
 
 st.set_page_config(layout="wide")
+
+# ======================
+# Password sederhana
+# ======================
+PASSWORD = "Geomin2025"  # password sudah diganti sesuai permintaan
+
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+def login():
+    pwd = st.text_input("Masukkan password untuk mengakses aplikasi:", type="password")
+    if st.button("Login"):
+        if pwd == PASSWORD:
+            st.session_state.authenticated = True
+            st.success("Login berhasil!")
+        else:
+            st.error("Password salah, coba lagi.")
+
+if not st.session_state.authenticated:
+    login()
+    st.stop()
+
+# ======================
+# Jika sudah login, tampilkan app
+# ======================
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 
 # Load GeoJSON hasil export dari GEE
@@ -56,10 +82,21 @@ unsur_cols = [
 composite_table = pd.DataFrame(filtered_gdf[unsur_cols])
 st.dataframe(composite_table.style.format(precision=2), use_container_width=True)
 
+# Tombol download CSV
+csv_buffer = io.StringIO()
+composite_table.to_csv(csv_buffer, index=False)
+csv_bytes = csv_buffer.getvalue().encode()
+
+st.download_button(
+    label="⬇️ Download CSV Data Composite",
+    data=csv_bytes,
+    file_name=f"composite_layer_{selected_layer}.csv",
+    mime='text/csv'
+)
+
 # =======================
 # TABEL TOTAL DEPTH
 # =======================
 st.subheader("📏 Total Depth per BHID")
 depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
 st.dataframe(depth_table.sort_values('BHID'), use_container_width=True)
-
