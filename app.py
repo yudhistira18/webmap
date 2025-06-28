@@ -32,18 +32,23 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ======================
-# Load Data & Filter Layer
+# Load Data
 # ======================
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 gdf = gpd.read_file("composite_bor.geojson")
 
-available_layers = ["All Layers"] + sorted(gdf['Layer'].unique().astype(str).tolist())
+# Pastikan kolom bertipe string
+gdf["BHID"] = gdf["BHID"].astype(str)
+gdf["Layer"] = gdf["Layer"].astype(str)
+
+# Filter dropdown layer
+available_layers = ["All Layers"] + sorted(gdf['Layer'].unique().tolist())
 selected_layer = st.selectbox("🔍 Pilih Layer:", options=available_layers)
 
-filtered_gdf = gdf.copy() if selected_layer == "All Layers" else gdf[gdf['Layer'].astype(str) == selected_layer]
+filtered_gdf = gdf.copy() if selected_layer == "All Layers" else gdf[gdf['Layer'] == selected_layer]
 
 # ======================
-# Isograde Interpolasi
+# Isograde Ni Interpolasi
 # ======================
 st.markdown("### 🌀 Isograde Ni (Interpolasi)")
 
@@ -79,7 +84,7 @@ elif selected_layer != "All Layers":
     st.warning("⚠️ Tidak cukup titik untuk interpolasi isograde.")
 
 # ======================
-# PETA FOLIUM
+# PETA
 # ======================
 st.markdown("### 📍 Peta Titik Bor + Isograde")
 m = folium.Map(
@@ -154,8 +159,8 @@ st.download_button(
 st.markdown("### 📏 Tabel Total Depth per BHID")
 
 depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
-depth_table = depth_table.sort_values('BHID')
 depth_table["BHID"] = depth_table["BHID"].astype(str)
+depth_table = depth_table.sort_values('BHID')
 
 gb_depth = GridOptionsBuilder.from_dataframe(depth_table)
 gb_depth.configure_default_column(
