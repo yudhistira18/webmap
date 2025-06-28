@@ -32,7 +32,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ======================
-# Data & Filter Layer
+# Data & Layer Filter
 # ======================
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 gdf = gpd.read_file("composite_bor.geojson")
@@ -120,11 +120,13 @@ composite_table = pd.DataFrame(filtered_gdf[unsur_cols])
 
 gb = GridOptionsBuilder.from_dataframe(composite_table)
 gb.configure_default_column(
-    filter="agSetColumnFilter",
     sortable=True,
     resizable=True,
     floatingFilter=True
 )
+# ✅ Dropdown filter seperti Excel untuk BHID dan Layer
+gb.configure_column("BHID", filter="agSetColumnFilter")
+gb.configure_column("Layer", filter="agSetColumnFilter")
 gb.configure_pagination(paginationAutoPageSize=True)
 grid_options = gb.build()
 
@@ -156,11 +158,11 @@ depth_table = depth_table.sort_values('BHID')
 
 gb_depth = GridOptionsBuilder.from_dataframe(depth_table)
 gb_depth.configure_default_column(
-    filter="agSetColumnFilter",
     sortable=True,
     resizable=True,
     floatingFilter=True
 )
+gb_depth.configure_column("BHID", filter="agSetColumnFilter")  # ✅ Checklist filter untuk BHID
 gb_depth.configure_pagination(paginationAutoPageSize=True)
 depth_options = gb_depth.build()
 
