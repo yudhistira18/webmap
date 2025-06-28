@@ -192,3 +192,38 @@ fig = px.scatter_ternary(
 )
 fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
 st.plotly_chart(fig, use_container_width=True)
+
+# 13. Box Plot MC berdasarkan Layer
+st.markdown("### 📦 Box Plot MC per Layer")
+
+# Ambil data yang memiliki nilai MC dan Layer
+boxplot_data = df_clean.dropna(subset=['MC', 'Layer']).copy()
+boxplot_data['Layer'] = boxplot_data['Layer'].astype(int)
+boxplot_data['Layer_Label'] = boxplot_data['Layer'].map({
+    100: '100 - Top Soil',
+    200: '200 - Limonit',
+    250: '250 - Limonit Organik',
+    300: '300 - Saprolit',
+    400: '400 - Bedrock'
+})
+boxplot_data['Color'] = boxplot_data['Layer'].map(color_map)
+
+# Plot dengan plotly
+import plotly.express as px
+fig_box = px.box(
+    boxplot_data,
+    x='Layer_Label',
+    y='MC',
+    color='Layer_Label',
+    color_discrete_map={f'{k} - {v}': color_map[k] for k, v in {
+        100: 'Top Soil',
+        200: 'Limonit',
+        250: 'Limonit Organik',
+        300: 'Saprolit',
+        400: 'Bedrock'
+    }.items()},
+    points='all',  # Menampilkan semua titik (jittered)
+    title='Distribusi MC (Moisture Content) per Layer'
+)
+fig_box.update_layout(xaxis_title="Layer", yaxis_title="MC (%)")
+st.plotly_chart(fig_box, use_container_width=True)
