@@ -216,7 +216,7 @@ with tab_vis:
         st.plotly_chart(fig_box, use_container_width=True)
 
   # ------------------- BOX PLOT DENSITAS GABUNGAN -------------------
-st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas & Dens_WetArch)")
+st.markdown("#### ⚖️ Box Plot Densitas (Dens_WetMeas & Dens_WetArch)")
 
 fig_dens = go.Figure()
 
