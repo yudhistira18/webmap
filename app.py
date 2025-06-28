@@ -106,15 +106,16 @@ col3.metric("🔢 Unique BHID", composite['BHID'].nunique())
 # ====================================
 # 6. Filter Bukit, Prospect, Layer & BHID
 # ====================================
-# Bukit filter
-available_bukit = ["All Bukit"] + sorted(composite['Bukit'].unique())
-selected_bukit = st.selectbox("⛰️ Filter Bukit:", available_bukit)
-df_b = composite if selected_bukit=="All Bukit" else composite[composite['Bukit']==selected_bukit]
 
 # Prospect filter
 available_prospects = ["All Prospects"] + sorted(df_b['Prospect'].unique())
 selected_prospect = st.selectbox("🏷️ Filter Prospect:", available_prospects)
 df_bp = df_b if selected_prospect=="All Prospects" else df_b[df_b['Prospect']==selected_prospect]
+
+# Bukit filter
+available_bukit = ["All Bukit"] + sorted(composite['Bukit'].unique())
+selected_bukit = st.selectbox("⛰️ Filter Bukit:", available_bukit)
+df_b = composite if selected_bukit=="All Bukit" else composite[composite['Bukit']==selected_bukit]
 
 # Layer filter
 available_layers = ["All Layers"] + sorted(df_bp["Layer"].astype(str).unique())
