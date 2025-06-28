@@ -28,14 +28,19 @@ if not uploaded_file:
 
 df_raw = pd.read_excel(uploaded_file)
 unsur = ['Ni','Co','Fe2O3','Fe','FeO','SiO2','CaO','MgO','MnO','Cr2O3','Al2O3','P2O5','TiO2','SO3','LOI','MC']
+
+# Tambahkan densitas jika ada
+extra_cols = [col for col in ['Dens_WetMeas', 'Dens_WetArch'] if col in df_raw.columns]
+
+# Tambahkan kolom thickness jika belum ada
 if 'Thickness' not in df_raw.columns:
     df_raw['Thickness'] = df_raw['To'] - df_raw['From']
 
-required = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','XCollar','YCollar','ZCollar'] + unsur
+# Kolom wajib
+required = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','XCollar','YCollar','ZCollar'] + unsur + extra_cols
 missing = [c for c in required if c not in df_raw.columns]
-if missing:
-    st.error(f"❌ Kolom hilang: {missing}")
-    st.stop()
+for col in missing:
+    df_raw[col] = np.nan  # Tambahkan kolom yang hilang sebagai NaN
 
 df_clean = df_raw[required].dropna(subset=['Prospect','Bukit','BHID','Layer','Thickness','XCollar','YCollar']).query("Thickness > 0")
 sample_count = df_clean.groupby('BHID').size().reset_index(name='Sample_Count')
@@ -111,7 +116,7 @@ color_map = {
 # ============ TAB LAYOUT ============
 tab_data, tab_vis = st.tabs(["📍 Data & Peta", "📈 Visualisasi"])
 
-# ============ TAB 1: DATA & PETA ============
+# ============ TAB 1 ============
 with tab_data:
     st.markdown("## 📊 Ringkasan")
     c1, c2, c3, c4 = st.columns(4)
@@ -134,8 +139,6 @@ with tab_data:
                        f"Ni: {r['Ni']:.2f}")
             ).add_to(m)
         st_folium(m, height=650, use_container_width=True)
-    else:
-        st.warning("Tidak ada data ditampilkan pada peta.")
 
     st.markdown("### 📋 Tabel Data")
     show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
@@ -163,14 +166,13 @@ with tab_data:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# ============ TAB 2: VISUALISASI ============
+# ============ TAB 2 ============
 with tab_vis:
     st.markdown("### 📈 Visualisasi Komposit")
 
-    # ------------------- TERNARY + MC BOX -------------------
+    # Ternary dan MC Box Plot
     col1, col2 = st.columns(2)
 
-    # TERNARY PLOT
     with col1:
         st.markdown("#### 🔺 Ternary Plot (SiO₂ - MgO - FeO)")
         ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
@@ -185,14 +187,9 @@ with tab_vis:
             hover_name='BHID',
             size_max=8
         )
-        fig_tern.update_layout(
-            height=500,
-            margin=dict(t=40, b=40, l=20, r=20),
-            title_font_size=16
-        )
+        fig_tern.update_layout(height=500, margin=dict(t=40, b=40, l=20, r=20))
         st.plotly_chart(fig_tern, use_container_width=True)
 
-    # BOX PLOT MC
     with col2:
         st.markdown("#### 📦 Box Plot MC per Layer")
         fig_box = go.Figure()
@@ -214,60 +211,40 @@ with tab_vis:
             xaxis_title="Layer",
             height=500,
             showlegend=False,
-            margin=dict(t=40, b=40, l=20, r=20),
+            margin=dict(t=40, b=40, l=20, r=20)
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-    # ------------------- BOX PLOT DENS_WETMEAS -------------------
-    st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas)")
+    # Box Plot Dens_WetMeas
+    if 'Dens_WetMeas' in df_clean.columns:
+        st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas)")
+        df_meas = df_clean[df_clean['Layer'].isin([200, 300]) & df_clean['Dens_WetMeas'].notna()].copy()
+        df_meas['Layer_Label'] = df_meas['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
+        if not df_meas.empty:
+            fig_meas = px.box(
+                df_meas,
+                x='Layer_Label',
+                y='Dens_WetMeas',
+                points='all',
+                color='Layer_Label',
+                color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'}
+            )
+            fig_meas.update_layout(yaxis_title="Densitas (gr/cm³)", xaxis_title="Layer", height=450)
+            st.plotly_chart(fig_meas, use_container_width=True)
 
-    df_meas = df_clean[
-        df_clean['Layer'].isin([200, 300]) &
-        df_clean['Dens_WetMeas'].notna()
-    ].copy()
-    df_meas['Layer_Label'] = df_meas['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
-
-    fig_meas = px.box(
-        df_meas,
-        x='Layer_Label',
-        y='Dens_WetMeas',
-        points='all',
-        color='Layer_Label',
-        color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'},
-        title="Dens_WetMeas - Limonit vs Saprolit"
-    )
-    fig_meas.update_layout(
-        yaxis_title="Densitas (gr/cm³)",
-        xaxis_title="Layer",
-        showlegend=False,
-        height=450,
-        margin=dict(t=40, b=40, l=20, r=20)
-    )
-    st.plotly_chart(fig_meas, use_container_width=True)
-
-    # ------------------- BOX PLOT DENS_WETARCH -------------------
-    st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetArch)")
-
-    df_arch = df_clean[
-        df_clean['Layer'].isin([200, 300]) &
-        df_clean['Dens_WetArch'].notna()
-    ].copy()
-    df_arch['Layer_Label'] = df_arch['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
-
-    fig_arch = px.box(
-        df_arch,
-        x='Layer_Label',
-        y='Dens_WetArch',
-        points='all',
-        color='Layer_Label',
-        color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'},
-        title="Dens_WetArch - Limonit vs Saprolit"
-    )
-    fig_arch.update_layout(
-        yaxis_title="Densitas (gr/cm³)",
-        xaxis_title="Layer",
-        showlegend=False,
-        height=450,
-        margin=dict(t=40, b=40, l=20, r=20)
-    )
-    st.plotly_chart(fig_arch, use_container_width=True)
+    # Box Plot Dens_WetArch
+    if 'Dens_WetArch' in df_clean.columns:
+        st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetArch)")
+        df_arch = df_clean[df_clean['Layer'].isin([200, 300]) & df_clean['Dens_WetArch'].notna()].copy()
+        df_arch['Layer_Label'] = df_arch['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
+        if not df_arch.empty:
+            fig_arch = px.box(
+                df_arch,
+                x='Layer_Label',
+                y='Dens_WetArch',
+                points='all',
+                color='Layer_Label',
+                color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'}
+            )
+            fig_arch.update_layout(yaxis_title="Densitas (gr/cm³)", xaxis_title="Layer", height=450)
+            st.plotly_chart(fig_arch, use_container_width=True)
