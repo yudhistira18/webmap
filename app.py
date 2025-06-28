@@ -207,3 +207,42 @@ with tab_vis:
             showlegend=False
         )
         st.plotly_chart(fig_box, use_container_width=True)
+st.markdown("#### ⚖️ Box Plot Densitas (Wet Meas vs Wet Arch)")
+
+# Ambil data hanya untuk Limonit dan Saprolit, dan hanya jika kedua kolom tidak null
+dens_data = df_clean[
+    df_clean['Layer'].isin([200, 300]) &
+    df_clean['Dens_WetMeas'].notna() &
+    df_clean['Dens_WetArch'].notna()
+].copy()
+
+# Ubah ke bentuk long untuk visualisasi
+dens_long = pd.melt(
+    dens_data,
+    id_vars=['Layer'],
+    value_vars=['Dens_WetMeas', 'Dens_WetArch'],
+    var_name='Jenis Densitas',
+    value_name='Nilai'
+)
+
+# Tambahkan label layer
+dens_long['Layer_Label'] = dens_long['Layer'].map({
+    200: 'Limonit',
+    300: 'Saprolit'
+})
+
+# Buat box plot
+fig_dens = px.box(
+    dens_long,
+    x='Layer_Label',
+    y='Nilai',
+    color='Jenis Densitas',
+    points='all',
+    title="Box Plot Densitas Basah per Layer (Hanya Limonit & Saprolit)"
+)
+fig_dens.update_layout(
+    yaxis_title="Densitas (gr/cm³)",
+    xaxis_title="Layer",
+    boxmode='group'
+)
+st.plotly_chart(fig_dens, use_container_width=True)
