@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Dashboard + Filter Dinamis")
+st.title("🗂️ Composite Data Bor")
 
 # ====================================
 # 1. Upload & Read Excel
