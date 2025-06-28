@@ -218,44 +218,56 @@ with tab_vis:
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-    # ------------------- BOX PLOT DENSITAS -------------------
-    st.markdown("#### ⚖️ Box Plot Densitas Basah per Layer (Limonit & Saprolit)")
+    # ------------------- BOX PLOT DENS_WETMEAS -------------------
+    st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas)")
 
-    # Filter data Limonit & Saprolit, dan buang NaN
-    df_dens = df_clean[
+    df_meas = df_clean[
         df_clean['Layer'].isin([200, 300]) &
-        df_clean['Dens_WetMeas'].notna() &
-        df_clean['Dens_WetArch'].notna()
+        df_clean['Dens_WetMeas'].notna()
     ].copy()
+    df_meas['Layer_Label'] = df_meas['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
 
-    # Long format
-    df_dens_long = pd.melt(
-        df_dens,
-        id_vars=['Layer'],
-        value_vars=['Dens_WetMeas', 'Dens_WetArch'],
-        var_name='Tipe Densitas',
-        value_name='Nilai'
-    )
-
-    df_dens_long['Layer_Label'] = df_dens_long['Layer'].map({
-        200: 'Limonit',
-        300: 'Saprolit'
-    })
-
-    # Plot
-    fig_dens = px.box(
-        df_dens_long,
+    fig_meas = px.box(
+        df_meas,
         x='Layer_Label',
-        y='Nilai',
-        color='Tipe Densitas',
+        y='Dens_WetMeas',
         points='all',
-        title="Box Plot Densitas Basah (Wet Meas vs Wet Arch) - Limonit & Saprolit"
+        color='Layer_Label',
+        color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'},
+        title="Dens_WetMeas - Limonit vs Saprolit"
     )
-    fig_dens.update_layout(
+    fig_meas.update_layout(
         yaxis_title="Densitas (gr/cm³)",
         xaxis_title="Layer",
-        boxmode='group',
-        height=500,
-        margin=dict(t=40, b=40, l=20, r=20),
+        showlegend=False,
+        height=450,
+        margin=dict(t=40, b=40, l=20, r=20)
     )
-    st.plotly_chart(fig_dens, use_container_width=True)
+    st.plotly_chart(fig_meas, use_container_width=True)
+
+    # ------------------- BOX PLOT DENS_WETARCH -------------------
+    st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetArch)")
+
+    df_arch = df_clean[
+        df_clean['Layer'].isin([200, 300]) &
+        df_clean['Dens_WetArch'].notna()
+    ].copy()
+    df_arch['Layer_Label'] = df_arch['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
+
+    fig_arch = px.box(
+        df_arch,
+        x='Layer_Label',
+        y='Dens_WetArch',
+        points='all',
+        color='Layer_Label',
+        color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'},
+        title="Dens_WetArch - Limonit vs Saprolit"
+    )
+    fig_arch.update_layout(
+        yaxis_title="Densitas (gr/cm³)",
+        xaxis_title="Layer",
+        showlegend=False,
+        height=450,
+        margin=dict(t=40, b=40, l=20, r=20)
+    )
+    st.plotly_chart(fig_arch, use_container_width=True)
