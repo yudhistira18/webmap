@@ -1,4 +1,6 @@
 streamlit
-geopandas
 folium
 streamlit-folium
+geopandas
+matplotlib
+scipy
