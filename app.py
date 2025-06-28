@@ -115,28 +115,19 @@ if not df_filter.empty:
 else:
     st.warning("Tidak ada data ditampilkan pada peta.")
 
-# 9. Pilihan Tabel: Composite dan Original
-st.markdown("### 📋 Tampilkan Tabel Data")
+# 9. Tabel Composite atau Original
+st.markdown("### 📋 Tabel Data")
+show_original = st.checkbox("Tampilkan data asli (belum dikomposit)?", value=False)
 
-show_composite = st.checkbox("✅ Tampilkan Tabel Composite", value=True)
-show_original = st.checkbox("📂 Tampilkan Tabel Original (Sebelum Komposit)")
-
-# Kolom yang ditampilkan
-composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','Percent'] + unsur
-
-# Filter data original berdasarkan BHID & Layer dari composite filter
-original_filtered = df_clean[
-    (df_clean['BHID'].isin(df_filter['BHID'])) &
-    (df_clean['Layer'].astype(str).isin(df_filter['Layer'].astype(str)))
-]
-
-if show_composite:
-    st.markdown("#### 📊 Tabel Composite")
-    st.dataframe(df_filter[composite_cols], use_container_width=True)
+composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth'] + unsur
+cols_to_exclude = ['Thickness','Percent']
+original_cols = [col for col in composite_cols if col in df_clean.columns and col not in cols_to_exclude]
 
 if show_original:
-    st.markdown("#### 🧾 Tabel Original (Sebelum Komposit)")
-    st.dataframe(original_filtered[composite_cols[:-1]], use_container_width=True)  # Tanpa Percent
+    original_filtered = df_clean[df_clean['BHID'].isin(df_filter['BHID']) & df_clean['Layer'].astype(str).isin(selected_layers)]
+    st.dataframe(original_filtered[original_cols], use_container_width=True)
+else:
+    st.dataframe(df_filter[composite_cols], use_container_width=True)
 
 # 10. Tabel Koordinat dan Depth
 st.markdown("### 📍 Koordinat Collar dan Total Depth")
