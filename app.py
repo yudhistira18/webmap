@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 # ============ CONFIG & STYLING ============
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor")
+st.title("📂 Composite Data Bor")
 st.markdown("""
 <style>
 .block-container {
@@ -21,26 +21,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============ FILE UPLOAD ============
-uploaded_file = st.file_uploader("📤 Upload file Excel (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("📄 Upload file Excel (.xlsx)", type=["xlsx"])
 if not uploaded_file:
     st.info("Silakan upload file Excel yang berisi kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
 df_raw = pd.read_excel(uploaded_file)
 unsur = ['Ni','Co','Fe2O3','Fe','FeO','SiO2','CaO','MgO','MnO','Cr2O3','Al2O3','P2O5','TiO2','SO3','LOI','MC']
-
-# Tambahkan densitas jika ada
 extra_cols = [col for col in ['Dens_WetMeas', 'Dens_WetArch'] if col in df_raw.columns]
 
-# Tambahkan kolom thickness jika belum ada
 if 'Thickness' not in df_raw.columns:
     df_raw['Thickness'] = df_raw['To'] - df_raw['From']
 
-# Kolom wajib
 required = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','XCollar','YCollar','ZCollar'] + unsur + extra_cols
 missing = [c for c in required if c not in df_raw.columns]
 for col in missing:
-    df_raw[col] = np.nan  # Tambahkan kolom yang hilang sebagai NaN
+    df_raw[col] = np.nan
 
 df_clean = df_raw[required].dropna(subset=['Prospect','Bukit','BHID','Layer','Thickness','XCollar','YCollar']).query("Thickness > 0")
 sample_count = df_clean.groupby('BHID').size().reset_index(name='Sample_Count')
@@ -97,6 +93,12 @@ layer_opts = sorted(df_filter['Layer'].astype(str).unique())
 selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
+# Filter untuk df_clean agar visualisasi ikut filter
+df_clean_filtered = df_clean[
+    df_clean['BHID'].isin(selected_bhids) &
+    df_clean['Layer'].astype(str).isin(selected_layers)
+]
+
 # ============ WARNA & LABEL LAYER ============
 layer_names = {
     100: 'Top Soil',
@@ -113,10 +115,9 @@ color_map = {
     400: 'blue'
 }
 
-# ============ TAB LAYOUT ============
+# ============ TAB ============
 tab_data, tab_vis = st.tabs(["📍 Data & Peta", "📈 Visualisasi"])
 
-# ============ TAB 1 ============
 with tab_data:
     st.markdown("## 📊 Ringkasan")
     c1, c2, c3, c4 = st.columns(4)
@@ -125,7 +126,7 @@ with tab_data:
     c3.metric("🔢 BHID", df_filter['BHID'].nunique())
     c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
 
-    st.markdown("## 🗺️ Peta Titik Bor")
+    st.markdown("## 🗘️ Peta Titik Bor")
     if not df_filter.empty:
         m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
         for _, r in df_filter.iterrows():
@@ -154,7 +155,7 @@ with tab_data:
     summary = df_filter[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']].drop_duplicates()
     st.dataframe(summary, use_container_width=True)
 
-    st.markdown("### 💾 Unduh Hasil")
+    st.markdown("### 📥 Unduh Hasil")
     out = BytesIO()
     with pd.ExcelWriter(out, engine='openpyxl') as writer:
         df_filter.to_excel(writer, sheet_name='Composite', index=False)
@@ -166,16 +167,13 @@ with tab_data:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# ============ TAB 2 ============
 with tab_vis:
     st.markdown("### 📈 Visualisasi Komposit")
-
-    # Ternary dan MC Box Plot
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("#### 🔺 Ternary Plot (SiO₂ - MgO - FeO)")
-        ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
+        ternary_data = df_clean_filtered.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
         ternary_data['Layer'] = ternary_data['Layer'].astype(int)
         ternary_data['Layer_Label'] = ternary_data['Layer'].map(layer_names)
 
@@ -194,7 +192,7 @@ with tab_vis:
         st.markdown("#### 📦 Box Plot MC per Layer")
         fig_box = go.Figure()
         for layer_code, layer_label in layer_names.items():
-            df_layer = df_clean[df_clean['Layer'] == layer_code]
+            df_layer = df_clean_filtered[df_clean_filtered['Layer'] == layer_code]
             if not df_layer.empty:
                 fig_box.add_trace(go.Box(
                     y=df_layer['MC'],
@@ -215,44 +213,36 @@ with tab_vis:
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-  # ------------------- BOX PLOT DENSITAS GABUNGAN -------------------
-st.markdown("#### ⚖️ Box Plot Densitas (Dens_WetMeas & Dens_WetArch)")
-
-fig_dens = go.Figure()
-
-# Loop untuk kombinasi Layer dan Jenis Densitas
-densitas_types = {
-    'Dens_WetMeas': 'Meas',
-    'Dens_WetArch': 'Arch'
-}
-
-for dens_col, label in densitas_types.items():
-    if dens_col not in df_clean.columns:
-        continue  # Skip kalau kolom tidak ada
-
-    for layer_code in [200, 300]:  # Limonit dan Saprolit
-        layer_data = df_clean[
-            (df_clean['Layer'] == layer_code) &
-            (df_clean[dens_col].notna())
-        ]
-
-        if not layer_data.empty:
-            fig_dens.add_trace(go.Box(
-                y=layer_data[dens_col],
-                name=f"{layer_names[layer_code]} ({label})",
-                marker_color=color_map[layer_code],
-                boxpoints='all',
-                jitter=0.4,
-                pointpos=0,  # titik menumpuk di tengah
-                marker=dict(opacity=0.6, size=4),
-                line=dict(width=1)
-            ))
-
-fig_dens.update_layout(
-    yaxis_title="Densitas (gr/cm³)",
-    xaxis_title="Layer & Jenis Densitas",
-    height=500,
-    showlegend=False,
-    margin=dict(t=40, b=40, l=20, r=20)
-)
-st.plotly_chart(fig_dens, use_container_width=True)
+    st.markdown("#### ⚖️ Box Plot Densitas (Dens_WetMeas & Dens_WetArch)")
+    fig_dens = go.Figure()
+    densitas_types = {
+        'Dens_WetMeas': 'Meas',
+        'Dens_WetArch': 'Arch'
+    }
+    for dens_col, label in densitas_types.items():
+        if dens_col not in df_clean_filtered.columns:
+            continue
+        for layer_code in [200, 300]:
+            layer_data = df_clean_filtered[
+                (df_clean_filtered['Layer'] == layer_code) &
+                (df_clean_filtered[dens_col].notna())
+            ]
+            if not layer_data.empty:
+                fig_dens.add_trace(go.Box(
+                    y=layer_data[dens_col],
+                    name=f"{layer_names[layer_code]} ({label})",
+                    marker_color=color_map[layer_code],
+                    boxpoints='all',
+                    jitter=0.4,
+                    pointpos=0,
+                    marker=dict(opacity=0.6, size=4),
+                    line=dict(width=1)
+                ))
+    fig_dens.update_layout(
+        yaxis_title="Densitas (gr/cm³)",
+        xaxis_title="Layer & Jenis Densitas",
+        height=500,
+        showlegend=False,
+        margin=dict(t=40, b=40, l=20, r=20)
+    )
+    st.plotly_chart(fig_dens, use_container_width=True)
