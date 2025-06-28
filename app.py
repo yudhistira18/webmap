@@ -60,6 +60,10 @@ for i, ((prospect, bukit, bhid, layer), g) in enumerate(groups):
     progress.progress((i+1)/len(groups))
 composite = pd.DataFrame(result)
 
+# ✅ UPDATE: Tambahkan total thickness per layer (bukan per BHID)
+layer_thick = df_clean.groupby(['BHID', 'Layer'])['Thickness'].sum().reset_index(name='Total_Thickness_Per_Layer')
+composite = composite.merge(layer_thick, on=['BHID', 'Layer'], how='left')
+
 # 4. Tambahan info
 composite = composite.merge(df_clean.groupby('BHID')['To'].max().rename('Total_Depth'), on='BHID')
 composite = composite.merge(sample_count, on='BHID', how='left')
@@ -119,7 +123,7 @@ else:
 st.markdown("### 📋 Tabel Data")
 show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
 
-composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth'] + unsur
+composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth','Total_Thickness_Per_Layer'] + unsur
 cols_to_exclude = ['Thickness','Percent']
 original_cols = [col for col in composite_cols if col in df_clean.columns and col not in cols_to_exclude]
 
@@ -147,26 +151,22 @@ st.download_button(
     file_name="composite_filtered.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+
 # 12. Ternary Plot SiO₂ - MgO - FeO
 st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
-
-# Pastikan kolom tidak null dan data asli digunakan (df_clean)
 ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
 ternary_data['Layer'] = ternary_data['Layer'].astype(int)
 
-# Map warna sesuai layer
 color_map = {
-    100: 'gray',    # Top Soil
-    200: 'red',     # Limonit
-    250: 'black',   # Limonit Organik
-    300: 'green',   # Saprolit
-    400: 'blue',    # Bedrock
+    100: 'gray',
+    200: 'red',
+    250: 'black',
+    300: 'green',
+    400: 'blue',
 }
-
 ternary_data['Color'] = ternary_data['Layer'].map(color_map)
 ternary_data['Layer_Label'] = ternary_data['Layer'].astype(str)
 
-# Plot pakai plotly
 import plotly.express as px
 fig = px.scatter_ternary(
     ternary_data,
