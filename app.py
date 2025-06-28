@@ -9,11 +9,18 @@ st.title("Peta Titik Bor Hasil Composite")
 # Load GeoJSON
 gdf = gpd.read_file("composite_bor.geojson")
 
+# Dropdown filter layer
+available_layers = gdf['Layer'].unique().tolist()
+selected_layer = st.selectbox("Pilih Layer yang ingin ditampilkan:", options=available_layers)
+
+# Filter data berdasarkan pilihan layer
+filtered_gdf = gdf[gdf['Layer'] == selected_layer]
+
 # Buat peta folium
-m = folium.Map(location=[gdf.geometry.y.mean(), gdf.geometry.x.mean()], zoom_start=12)
+m = folium.Map(location=[filtered_gdf.geometry.y.mean(), filtered_gdf.geometry.x.mean()], zoom_start=12)
 
 # Tambahkan titik ke peta
-for _, row in gdf.iterrows():
+for _, row in filtered_gdf.iterrows():
     popup = (
         f"<b>BHID:</b> {row['BHID']}<br>"
         f"<b>Layer:</b> {row['Layer']}<br>"
