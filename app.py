@@ -4,7 +4,9 @@ import numpy as np
 from pyproj import Transformer
 import folium
 from streamlit_folium import st_folium
+from folium.plugins import MousePosition
 from io import BytesIO
+import plotly.express as px
 
 st.set_page_config(layout="wide")
 st.title("🗂️ Composite Data Bor")
@@ -60,14 +62,14 @@ for i, ((prospect, bukit, bhid, layer), g) in enumerate(groups):
     progress.progress((i+1)/len(groups))
 composite = pd.DataFrame(result)
 
-# ✅ UPDATE: Tambahkan total thickness per layer (bukan per BHID)
-layer_thick = df_clean.groupby(['BHID', 'Layer'])['Thickness'].sum().reset_index(name='Total_Thickness_Per_Layer')
-composite = composite.merge(layer_thick, on=['BHID', 'Layer'], how='left')
-
 # 4. Tambahan info
 composite = composite.merge(df_clean.groupby('BHID')['To'].max().rename('Total_Depth'), on='BHID')
 composite = composite.merge(sample_count, on='BHID', how='left')
 composite['Percent'] = (composite['Thickness'] / composite['Total_Depth']) * 100
+
+# Tambahkan Layer_Thickness
+layer_thick = df_clean.groupby(['BHID', 'Layer'])['Thickness'].sum().reset_index(name='Layer_Thickness')
+composite = composite.merge(layer_thick, on=['BHID', 'Layer'], how='left')
 
 # 5. Konversi Koordinat
 transformer = Transformer.from_crs("EPSG:32751", "EPSG:4326", always_xy=True)
@@ -115,6 +117,8 @@ if not df_filter.empty:
                    f"Layer: {r['Layer']}<br>"
                    f"Ni: {r['Ni']:.2f}")
         ).add_to(m)
+    MousePosition(position='bottomright').add_to(m)
+    folium.LatLngPopup().add_to(m)
     st_folium(m, height=400, use_container_width=True)
 else:
     st.warning("Tidak ada data ditampilkan pada peta.")
@@ -124,7 +128,7 @@ st.markdown("### 📋 Tabel Data")
 show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
 
 composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Total_Depth','Layer_Thickness'] + unsur
-cols_to_exclude = ['Thickness','Percent']
+cols_to_exclude = ['Percent','Thickness']
 original_cols = [col for col in composite_cols if col in df_clean.columns and col not in cols_to_exclude]
 
 if show_original:
@@ -154,27 +158,29 @@ st.download_button(
 
 # 12. Ternary Plot SiO₂ - MgO - FeO
 st.markdown("### 🔺 Ternary Plot (SiO₂ - MgO - FeO) berdasarkan Layer")
+
 ternary_data = df_clean.dropna(subset=['SiO2', 'MgO', 'FeO', 'Layer']).copy()
-ternary_data['Layer'] = ternary_data['Layer'].astype(int)
-
-color_map = {
-    100: 'gray',
-    200: 'red',
-    250: 'black',
-    300: 'green',
-    400: 'blue',
+layer_label_map = {
+    100: "Top Soil",
+    200: "Limonit",
+    250: "Limonit Organik",
+    300: "Saprolit",
+    400: "Bedrock"
 }
-ternary_data['Color'] = ternary_data['Layer'].map(color_map)
-ternary_data['Layer_Label'] = ternary_data['Layer'].astype(str)
+ternary_data['Layer_Label'] = ternary_data['Layer'].map(layer_label_map)
 
-import plotly.express as px
 fig = px.scatter_ternary(
     ternary_data,
     a='SiO2', b='MgO', c='FeO',
     color='Layer_Label',
-    color_discrete_map={str(k): v for k, v in color_map.items()},
-    hover_name='BHID',
-    size_max=8
+    color_discrete_map={
+        "Top Soil": "gray",
+        "Limonit": "red",
+        "Limonit Organik": "black",
+        "Saprolit": "green",
+        "Bedrock": "blue"
+    },
+    hover_name='BHID'
 )
 fig.update_layout(title='Ternary Plot SiO₂ - MgO - FeO berdasarkan Layer')
 st.plotly_chart(fig, use_container_width=True)
