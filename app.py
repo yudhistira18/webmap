@@ -18,9 +18,17 @@ if not uploaded_file:
     st.info("Silakan upload file Excel dengan kolom Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
-df = pd.read_excel(uploaded_file)
+raw_df = pd.read_excel(uploaded_file)
 
-# 2. Prepare & Composite
+# 2. Hitung Sample Count per BHID dari data mentah
+sample_counts = (
+    raw_df.groupby("BHID")
+          .size()
+          .reset_index(name="Sample_Count")
+)
+
+# 3. Prepare & Composite
+df = raw_df.copy()
 unsur = [
     'Ni','Co','Fe2O3','Fe','FeO','SiO2',
     'CaO','MgO','MnO','Cr2O3','Al2O3',
@@ -44,7 +52,7 @@ df = (
     .query("Thickness > 0")
 )
 
-# Compositing per Prospect → Bukit → BHID → Layer
+# 4. Compositing per Prospect → Bukit → BHID → Layer
 st.info("🔁 Mulai compositing per Prospect → Bukit → BHID → Layer...")
 progress = st.progress(0)
 groups = list(df.groupby(['Prospect','Bukit','BHID','Layer']))
@@ -75,7 +83,7 @@ composite['Percent'] = composite['Thickness'] / composite['Total_Depth'] * 100
 
 st.success("✅ Compositing selesai!")
 
-# 3. Konversi Koordinat UTM→WGS84
+# 5. Konversi Koordinat UTM→WGS84
 st.info("🌐 Konversi koordinat UTM zone 51S → WGS84")
 transformer = Transformer.from_crs("EPSG:32751","EPSG:4326",always_xy=True)
 coords = composite.apply(
@@ -85,7 +93,7 @@ coords = composite.apply(
 composite['Longitude'] = coords.map(lambda x: x[0])
 composite['Latitude']  = coords.map(lambda x: x[1])
 
-# 4. Filter Prospect → Bukit → BHID → Layer
+# 6. Filter Prospect → Bukit → BHID → Layer
 available_prospects = ["All"] + sorted(composite['Prospect'].unique())
 selected_prospect = st.selectbox("🏷️ Filter Prospect:", available_prospects)
 df_p = composite if selected_prospect=="All" else composite[composite['Prospect']==selected_prospect]
@@ -102,15 +110,19 @@ available_layers = ["All"] + sorted(df_pbh['Layer'].astype(str).unique())
 selected_layer = st.selectbox("🔍 Filter Layer:", available_layers)
 filtered = df_pbh if selected_layer=="All" else df_pbh[df_pbh['Layer']==selected_layer]
 
-# 5. Dashboard Ringkasan (Filtered)
+# 7. Dashboard Ringkasan (Filtered)
 st.markdown("## 📊 Dashboard Ringkasan (Filtered)")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("🏷️ Prospect", filtered['Prospect'].nunique())
 c2.metric("⛰️ Bukit", filtered['Bukit'].nunique())
 c3.metric("🔢 BHID", filtered['BHID'].nunique())
-c4.metric("📦 Samples", len(filtered))
+# total samples = sum of sample_counts for filtered BHID
+total_samples = sample_counts.loc[
+    sample_counts['BHID'].isin(filtered['BHID']), 'Sample_Count'
+].sum()
+c4.metric("📦 Samples", int(total_samples))
 
-# 6. Peta Titik Bor
+# 8. Peta Titik Bor
 st.markdown("### 🗺️ Peta Titik Bor")
 if not filtered.empty:
     m = folium.Map(
@@ -134,12 +146,12 @@ if not filtered.empty:
 else:
     st.warning("Tidak ada data untuk peta.")
 
-# 7. Tabel Composite
+# 9. Tabel Composite
 st.markdown("### 📋 Tabel Composite")
 cols_show = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','Percent'] + unsur
 st.dataframe(filtered[cols_show], use_container_width=True)
 
-# 8. Tabel Ringkasan (Coord + Depth)
+# 10. Tabel Ringkasan (Coord + Depth)
 st.markdown("### 📍 Koordinat Collar UTM & Total Depth")
 summary = (
     composite[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']]
@@ -148,7 +160,7 @@ summary = (
 )
 st.dataframe(summary, use_container_width=True)
 
-# 9. Download Excel (2 sheets)
+# 11. Download Excel (2 sheets)
 st.markdown("### 💾 Unduh Hasil")
 out = BytesIO()
 with pd.ExcelWriter(out, engine='openpyxl') as w:
