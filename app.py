@@ -7,10 +7,10 @@ from streamlit_folium import st_folium
 from io import BytesIO
 
 st.set_page_config(layout="wide")
-st.title("🗂️ Composite Data Bor + Dashboard + Sidebar Filter")
+st.title("🗂️ Composite Data Bor")
 
 # 1. Upload File
-uploaded_file = st.file_uploader("📤 Upload file Excel (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("📤 Upload file Excel (.xlsx) (JANGAN ADA CONDITIONAL FORMATTING!!!)", type=["xlsx"])
 if not uploaded_file:
     st.info("Silakan upload file Excel yang berisi kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
