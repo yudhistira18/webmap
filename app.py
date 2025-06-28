@@ -215,36 +215,44 @@ with tab_vis:
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-    # Box Plot Dens_WetMeas
-    if 'Dens_WetMeas' in df_clean.columns:
-        st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas)")
-        df_meas = df_clean[df_clean['Layer'].isin([200, 300]) & df_clean['Dens_WetMeas'].notna()].copy()
-        df_meas['Layer_Label'] = df_meas['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
-        if not df_meas.empty:
-            fig_meas = px.box(
-                df_meas,
-                x='Layer_Label',
-                y='Dens_WetMeas',
-                points='all',
-                color='Layer_Label',
-                color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'}
-            )
-            fig_meas.update_layout(yaxis_title="Densitas (gr/cm³)", xaxis_title="Layer", height=450)
-            st.plotly_chart(fig_meas, use_container_width=True)
+  # ------------------- BOX PLOT DENSITAS GABUNGAN -------------------
+st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetMeas & Dens_WetArch)")
 
-    # Box Plot Dens_WetArch
-    if 'Dens_WetArch' in df_clean.columns:
-        st.markdown("#### ⚖️ Box Plot Densitas Basah (Dens_WetArch)")
-        df_arch = df_clean[df_clean['Layer'].isin([200, 300]) & df_clean['Dens_WetArch'].notna()].copy()
-        df_arch['Layer_Label'] = df_arch['Layer'].map({200: 'Limonit', 300: 'Saprolit'})
-        if not df_arch.empty:
-            fig_arch = px.box(
-                df_arch,
-                x='Layer_Label',
-                y='Dens_WetArch',
-                points='all',
-                color='Layer_Label',
-                color_discrete_map={'Limonit': 'red', 'Saprolit': 'green'}
-            )
-            fig_arch.update_layout(yaxis_title="Densitas (gr/cm³)", xaxis_title="Layer", height=450)
-            st.plotly_chart(fig_arch, use_container_width=True)
+fig_dens = go.Figure()
+
+# Loop untuk kombinasi Layer dan Jenis Densitas
+densitas_types = {
+    'Dens_WetMeas': 'Meas',
+    'Dens_WetArch': 'Arch'
+}
+
+for dens_col, label in densitas_types.items():
+    if dens_col not in df_clean.columns:
+        continue  # Skip kalau kolom tidak ada
+
+    for layer_code in [200, 300]:  # Limonit dan Saprolit
+        layer_data = df_clean[
+            (df_clean['Layer'] == layer_code) &
+            (df_clean[dens_col].notna())
+        ]
+
+        if not layer_data.empty:
+            fig_dens.add_trace(go.Box(
+                y=layer_data[dens_col],
+                name=f"{layer_names[layer_code]} ({label})",
+                marker_color=color_map[layer_code],
+                boxpoints='all',
+                jitter=0.4,
+                pointpos=0,  # titik menumpuk di tengah
+                marker=dict(opacity=0.6, size=4),
+                line=dict(width=1)
+            ))
+
+fig_dens.update_layout(
+    yaxis_title="Densitas (gr/cm³)",
+    xaxis_title="Layer & Jenis Densitas",
+    height=500,
+    showlegend=False,
+    margin=dict(t=40, b=40, l=20, r=20)
+)
+st.plotly_chart(fig_dens, use_container_width=True)
