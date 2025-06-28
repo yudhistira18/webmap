@@ -26,10 +26,10 @@ if not uploaded_file:
     st.info("Silakan upload file Excel yang berisi kolom: Prospect, Bukit, BHID, Layer, From, To, XCollar, YCollar, ZCollar, dan unsur.")
     st.stop()
 
-# ============ DATA CLEANING ============
 df_raw = pd.read_excel(uploaded_file)
 unsur = ['Ni','Co','Fe2O3','Fe','FeO','SiO2','CaO','MgO','MnO','Cr2O3','Al2O3','P2O5','TiO2','SO3','LOI','MC']
 extra_cols = [col for col in ['Dens_WetMeas', 'Dens_WetArch'] if col in df_raw.columns]
+
 if 'Thickness' not in df_raw.columns:
     df_raw['Thickness'] = df_raw['To'] - df_raw['From']
 
@@ -75,10 +75,6 @@ lonlat = composite.apply(lambda row: transformer.transform(row['XCollar'], row['
 composite['Longitude'] = lonlat.map(lambda x: x[0])
 composite['Latitude'] = lonlat.map(lambda x: x[1])
 
-# ============ WARNA & LABEL LAYER ============
-layer_names = {100: 'Top Soil', 200: 'Limonit', 250: 'Limonit Organik', 300: 'Saprolit', 400: 'Bedrock'}
-color_map = {100: 'gray', 200: 'red', 250: 'black', 300: 'green', 400: 'blue'}
-
 # ============ SIDEBAR FILTER ============
 st.sidebar.header("🔍 Filter Data")
 prospect_opts = sorted(composite['Prospect'].unique())
@@ -86,39 +82,51 @@ selected_prospect = st.sidebar.selectbox("🏷️ Prospect", ["All"] + prospect_
 df_filter = composite if selected_prospect == "All" else composite[composite['Prospect'] == selected_prospect]
 
 bukit_opts = sorted(df_filter['Bukit'].unique())
-select_all_bukit = st.sidebar.checkbox("✅ Pilih semua Bukit", value=True)
-selected_bukit = st.sidebar.multiselect("⛰️ Bukit", options=bukit_opts, default=bukit_opts if select_all_bukit else [])
+selected_bukit = st.sidebar.multiselect("⛰️ Bukit", options=bukit_opts, default=bukit_opts)
 df_filter = df_filter[df_filter['Bukit'].isin(selected_bukit)]
 
 bhid_opts = sorted(df_filter['BHID'].unique())
-select_all_bhid = st.sidebar.checkbox("✅ Pilih semua BHID", value=True)
-selected_bhids = st.sidebar.multiselect("🔹 BHID", options=bhid_opts, default=bhid_opts if select_all_bhid else [])
+selected_bhids = st.sidebar.multiselect("🔢 BHID", options=bhid_opts, default=bhid_opts)
 df_filter = df_filter[df_filter['BHID'].isin(selected_bhids)]
 
 layer_opts = sorted(df_filter['Layer'].astype(str).unique())
-select_all_layer = st.sidebar.checkbox("✅ Pilih semua Layer", value=True)
-selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts if select_all_layer else [])
+selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
-# Filter juga untuk df_clean
+# Filter untuk df_clean agar visualisasi ikut filter
 df_clean_filtered = df_clean[
     df_clean['BHID'].isin(selected_bhids) &
     df_clean['Layer'].astype(str).isin(selected_layers)
 ]
 
-# ============ TAB LAYOUT ============
+# ============ WARNA & LABEL LAYER ============
+layer_names = {
+    100: 'Top Soil',
+    200: 'Limonit',
+    250: 'Limonit Organik',
+    300: 'Saprolit',
+    400: 'Bedrock'
+}
+color_map = {
+    100: 'gray',
+    200: 'red',
+    250: 'black',
+    300: 'green',
+    400: 'blue'
+}
+
+# ============ TAB ============
 tab_data, tab_vis = st.tabs(["📍 Data & Peta", "📈 Visualisasi"])
 
-# ============ TAB 1 ============
 with tab_data:
     st.markdown("## 📊 Ringkasan")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
     c2.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
-    c3.metric("🔹 BHID", df_filter['BHID'].nunique())
-    c4.metric("🧪 Sampel Awal", df_clean_filtered.shape[0])
+    c3.metric("🔢 BHID", df_filter['BHID'].nunique())
+    c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
 
-    st.markdown("## 🗽 Peta Titik Bor")
+    st.markdown("## 🗘️ Peta Titik Bor")
     if not df_filter.empty:
         m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
         for _, r in df_filter.iterrows():
@@ -138,7 +146,8 @@ with tab_data:
     composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Layer Thickness','Total_Depth'] + unsur
     original_cols = [col for col in composite_cols if col in df_clean.columns]
     if show_original:
-        st.dataframe(df_clean_filtered[original_cols], use_container_width=True)
+        original_filtered = df_clean[df_clean['BHID'].isin(df_filter['BHID']) & df_clean['Layer'].astype(str).isin(selected_layers)]
+        st.dataframe(original_filtered[original_cols], use_container_width=True)
     else:
         st.dataframe(df_filter[composite_cols], use_container_width=True)
 
@@ -146,7 +155,7 @@ with tab_data:
     summary = df_filter[['Prospect','Bukit','BHID','XCollar','YCollar','ZCollar','Total_Depth']].drop_duplicates()
     st.dataframe(summary, use_container_width=True)
 
-    st.markdown("### 📅 Unduh Hasil")
+    st.markdown("### 📥 Unduh Hasil")
     out = BytesIO()
     with pd.ExcelWriter(out, engine='openpyxl') as writer:
         df_filter.to_excel(writer, sheet_name='Composite', index=False)
@@ -158,10 +167,8 @@ with tab_data:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# ============ TAB 2 ============
 with tab_vis:
     st.markdown("### 📈 Visualisasi Komposit")
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -191,21 +198,27 @@ with tab_vis:
                     y=df_layer['MC'],
                     name=f"{layer_code} - {layer_label}",
                     marker_color=color_map[layer_code],
-                    boxpoints='all', jitter=0.4, pointpos=0,
+                    boxpoints='all',
+                    jitter=0.4,
+                    pointpos=0,
                     marker=dict(opacity=0.6, size=4),
                     line=dict(width=1)
                 ))
         fig_box.update_layout(
-            yaxis_title="MC (%)", xaxis_title="Layer", height=500, showlegend=False,
+            yaxis_title="MC (%)",
+            xaxis_title="Layer",
+            height=500,
+            showlegend=False,
             margin=dict(t=40, b=40, l=20, r=20)
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-    # ===== BOX PLOT DENSITAS GABUNGAN =====
     st.markdown("#### ⚖️ Box Plot Densitas (Dens_WetMeas & Dens_WetArch)")
     fig_dens = go.Figure()
-    densitas_types = {'Dens_WetMeas': 'Meas', 'Dens_WetArch': 'Arch'}
-
+    densitas_types = {
+        'Dens_WetMeas': 'Meas',
+        'Dens_WetArch': 'Arch'
+    }
     for dens_col, label in densitas_types.items():
         if dens_col not in df_clean_filtered.columns:
             continue
@@ -219,13 +232,17 @@ with tab_vis:
                     y=layer_data[dens_col],
                     name=f"{layer_names[layer_code]} ({label})",
                     marker_color=color_map[layer_code],
-                    boxpoints='all', jitter=0.4, pointpos=0,
+                    boxpoints='all',
+                    jitter=0.4,
+                    pointpos=0,
                     marker=dict(opacity=0.6, size=4),
                     line=dict(width=1)
                 ))
-
     fig_dens.update_layout(
-        yaxis_title="Densitas (gr/cm³)", xaxis_title="Layer & Jenis Densitas",
-        height=500, showlegend=False, margin=dict(t=40, b=40, l=20, r=20)
+        yaxis_title="Densitas (gr/cm³)",
+        xaxis_title="Layer & Jenis Densitas",
+        height=500,
+        showlegend=False,
+        margin=dict(t=40, b=40, l=20, r=20)
     )
     st.plotly_chart(fig_dens, use_container_width=True)
