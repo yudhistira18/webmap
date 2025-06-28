@@ -1,7 +1,8 @@
 streamlit
+geopandas
 folium
 streamlit-folium
-geopandas
+streamlit-aggrid
 matplotlib
 scipy
-streamlit-aggrid
+pillow
