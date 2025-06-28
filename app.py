@@ -32,7 +32,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ======================
-# Data & Layer Filter
+# Load Data & Filter Layer
 # ======================
 st.title("🗺️ Peta & Tabel Titik Bor Hasil Composite")
 gdf = gpd.read_file("composite_bor.geojson")
@@ -45,7 +45,7 @@ filtered_gdf = gdf.copy() if selected_layer == "All Layers" else gdf[gdf['Layer'
 # ======================
 # Isograde Interpolasi
 # ======================
-st.subheader("🌀 Isograde Ni (Interpolasi)")
+st.markdown("### 🌀 Isograde Ni (Interpolasi)")
 
 x, y, z = filtered_gdf.geometry.x.values, filtered_gdf.geometry.y.values, filtered_gdf['Ni'].values
 overlay_image, bounds = None, None
@@ -76,13 +76,12 @@ if selected_layer != "All Layers" and len(z) >= 3:
     img.save("isograde_overlay.png")
     overlay_image, bounds = img, [[yi.min(), xi.min()], [yi.max(), xi.max()]]
 elif selected_layer != "All Layers":
-    st.warning("⚠️ Tidak cukup titik untuk isograde.")
+    st.warning("⚠️ Tidak cukup titik untuk interpolasi isograde.")
 
 # ======================
 # PETA FOLIUM
 # ======================
-st.subheader("📍 Peta Titik Bor + Isograde")
-
+st.markdown("### 📍 Peta Titik Bor + Isograde")
 m = folium.Map(
     location=[filtered_gdf.geometry.y.mean(), filtered_gdf.geometry.x.mean()],
     zoom_start=12
@@ -104,12 +103,12 @@ if overlay_image and bounds:
     ImageOverlay(image="isograde_overlay.png", bounds=bounds, opacity=0.6, name="Isograde Ni").add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, use_container_width=True)
+st_folium(m, use_container_width=True, height=500)  # ✅ Tinggi peta diatur agar tidak terlalu tinggi
 
 # ======================
 # TABEL COMPOSITE
 # ======================
-st.subheader(f"📋 Tabel Composite - Layer: {selected_layer if selected_layer != 'All Layers' else 'Semua'}")
+st.markdown(f"### 📋 Tabel Composite - Layer: {selected_layer if selected_layer != 'All Layers' else 'Semua'}")
 
 unsur_cols = [
     'BHID', 'Layer', 'From', 'To', 'Thickness', 'Percent',
@@ -124,7 +123,6 @@ gb.configure_default_column(
     resizable=True,
     floatingFilter=True
 )
-# ✅ Dropdown filter seperti Excel untuk BHID dan Layer
 gb.configure_column("BHID", filter="agSetColumnFilter")
 gb.configure_column("Layer", filter="agSetColumnFilter")
 gb.configure_pagination(paginationAutoPageSize=True)
@@ -151,7 +149,7 @@ st.download_button(
 # ======================
 # TABEL TOTAL DEPTH
 # ======================
-st.subheader("📏 Tabel Total Depth per BHID")
+st.markdown("### 📏 Tabel Total Depth per BHID")
 
 depth_table = gdf[['BHID', 'Total_Depth', 'XCollar', 'YCollar', 'ZCollar']].drop_duplicates()
 depth_table = depth_table.sort_values('BHID')
@@ -162,7 +160,7 @@ gb_depth.configure_default_column(
     resizable=True,
     floatingFilter=True
 )
-gb_depth.configure_column("BHID", filter="agSetColumnFilter")  # ✅ Checklist filter untuk BHID
+gb_depth.configure_column("BHID", filter="agSetColumnFilter")
 gb_depth.configure_pagination(paginationAutoPageSize=True)
 depth_options = gb_depth.build()
 
