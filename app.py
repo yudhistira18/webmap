@@ -100,35 +100,32 @@ layer_opts = sorted(df_filter['Layer'].astype(str).unique())
 selected_layers = st.sidebar.multiselect("📚 Layer", options=layer_opts, default=layer_opts)
 df_filter = df_filter[df_filter['Layer'].astype(str).isin(selected_layers)]
 
-# 7 + 8. Ringkasan & Peta Lebar Layar
-st.markdown("## 📊 Ringkasan & 🗺️ Peta")
+# 7 + 8. Ringkasan Horizontal & Peta Full Width
+st.markdown("## 📊 Ringkasan")
 
-col1, col2 = st.columns([1, 4])  # col1 kecil, col2 besar
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
+c2.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
+c3.metric("🔢 BHID", df_filter['BHID'].nunique())
+c4.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
 
-with col1:
-    st.markdown("#### 📋 Info Ringkas")
-    st.metric("🏷️ Prospect", df_filter['Prospect'].nunique())
-    st.metric("⛰️ Bukit", df_filter['Bukit'].nunique())
-    st.metric("🔢 BHID", df_filter['BHID'].nunique())
-    st.metric("🧪 Sampel Awal", df_clean[df_clean['BHID'].isin(df_filter['BHID'])].shape[0])
+st.markdown("## 🗺️ Peta Titik Bor")
+if not df_filter.empty:
+    m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
+    for _, r in df_filter.iterrows():
+        folium.CircleMarker(
+            [r['Latitude'], r['Longitude']],
+            radius=5, color='blue', fill=True, fill_opacity=0.7,
+            popup=(f"Prospect: {r['Prospect']}<br>"
+                   f"Bukit: {r['Bukit']}<br>"
+                   f"BHID: {r['BHID']}<br>"
+                   f"Layer: {r['Layer']}<br>"
+                   f"Ni: {r['Ni']:.2f}")
+        ).add_to(m)
+    st_folium(m, height=550, use_container_width=True)
+else:
+    st.warning("Tidak ada data ditampilkan pada peta.")
 
-with col2:
-    st.markdown("#### 📍 Peta Titik Bor")
-    if not df_filter.empty:
-        m = folium.Map(location=[df_filter['Latitude'].mean(), df_filter['Longitude'].mean()], zoom_start=12)
-        for _, r in df_filter.iterrows():
-            folium.CircleMarker(
-                [r['Latitude'], r['Longitude']],
-                radius=5, color='blue', fill=True, fill_opacity=0.7,
-                popup=(f"Prospect: {r['Prospect']}<br>"
-                       f"Bukit: {r['Bukit']}<br>"
-                       f"BHID: {r['BHID']}<br>"
-                       f"Layer: {r['Layer']}<br>"
-                       f"Ni: {r['Ni']:.2f}")
-            ).add_to(m)
-        st_folium(m, height=500, use_container_width=True)
-    else:
-        st.warning("Tidak ada data ditampilkan pada peta.")
 
 
 # Checkbox untuk menampilkan data asli
