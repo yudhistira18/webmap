@@ -4,6 +4,7 @@ import numpy as np
 from pyproj import Transformer
 import folium
 from streamlit_folium import st_folium
+from io import BytesIO  
 
 st.set_page_config(layout="wide")
 st.title("🗂️ Composite Data Bor + Konversi Koordinat (PyProj)")
