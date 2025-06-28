@@ -4,3 +4,4 @@ streamlit-folium
 geopandas
 matplotlib
 scipy
+streamlit-aggrid
