@@ -3,6 +3,7 @@ geopandas
 folium
 streamlit-folium
 streamlit-aggrid
-matplotlib
 scipy
 pillow
+numpy
+matplotlib
