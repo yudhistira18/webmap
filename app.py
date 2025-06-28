@@ -115,10 +115,28 @@ if not df_filter.empty:
 else:
     st.warning("Tidak ada data ditampilkan pada peta.")
 
-# 9. Tabel Composite
-st.markdown("### 📋 Tabel Composite")
-cols_show = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','Percent'] + unsur
-st.dataframe(df_filter[cols_show], use_container_width=True)
+# 9. Pilihan Tabel: Composite dan Original
+st.markdown("### 📋 Tampilkan Tabel Data")
+
+show_composite = st.checkbox("✅ Tampilkan Tabel Composite", value=True)
+show_original = st.checkbox("📂 Tampilkan Tabel Original (Sebelum Komposit)")
+
+# Kolom yang ditampilkan
+composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Thickness','Percent'] + unsur
+
+# Filter data original berdasarkan BHID & Layer dari composite filter
+original_filtered = df_clean[
+    (df_clean['BHID'].isin(df_filter['BHID'])) &
+    (df_clean['Layer'].astype(str).isin(df_filter['Layer'].astype(str)))
+]
+
+if show_composite:
+    st.markdown("#### 📊 Tabel Composite")
+    st.dataframe(df_filter[composite_cols], use_container_width=True)
+
+if show_original:
+    st.markdown("#### 🧾 Tabel Original (Sebelum Komposit)")
+    st.dataframe(original_filtered[composite_cols[:-1]], use_container_width=True)  # Tanpa Percent
 
 # 10. Tabel Koordinat dan Depth
 st.markdown("### 📍 Koordinat Collar dan Total Depth")
