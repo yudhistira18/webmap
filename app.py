@@ -149,7 +149,7 @@ with tab_data:
         st_folium(m, height=650, use_container_width=True)
 
     st.markdown("### 📋 Tabel Data")
-    show_original = st.checkbox("Tampilkan data asli (belum dikomposit)", value=False)
+    show_original = st.checkbox("Tampilkan data asli (hanya mengunduh data komposit!)", value=False)
     composite_cols = ['Prospect','Bukit','BHID','Layer','From','To','Layer Thickness','Total_Depth'] + unsur
     original_cols = [col for col in composite_cols if col in df_clean.columns]
     if show_original:
